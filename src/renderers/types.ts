@@ -3,6 +3,7 @@ import { SplatAssetConfig } from '../config/schema';
 
 export interface SplatFitData {
   center: THREE.Vector3;
+  size: THREE.Vector3;
   radius: number;
 }
 

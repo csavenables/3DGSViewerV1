@@ -61,6 +61,7 @@ export class CameraController {
 
   frameTarget(
     target: THREE.Vector3,
+    size: THREE.Vector3,
     radius: number,
     fovDegrees: number,
     limits: CameraLimitsConfig,
@@ -71,12 +72,16 @@ export class CameraController {
       direction.set(0, 0, 1);
     }
 
-    const halfVerticalFov = THREE.MathUtils.degToRad(fovDegrees * 0.5);
-    const halfHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * this.camera.aspect);
-    const halfLimitingFov = Math.max(0.01, Math.min(halfVerticalFov, halfHorizontalFov));
+    const halfVerticalFov = Math.max(0.01, THREE.MathUtils.degToRad(fovDegrees * 0.5));
+    const halfHorizontalFov = Math.max(0.01, Math.atan(Math.tan(halfVerticalFov) * this.camera.aspect));
+    const halfWidth = Math.max(0.001, size.x * 0.5);
+    const halfHeight = Math.max(0.001, size.y * 0.5);
 
-    // Use spherical fit with margin so the whole splat is visible on narrow and wide screens.
-    const desiredDistance = (radius / Math.sin(halfLimitingFov)) * 1.08;
+    // Fit by projected box dimensions first, then fall back to sphere fit for depth safety.
+    const distanceForHeight = halfHeight / Math.tan(halfVerticalFov);
+    const distanceForWidth = halfWidth / Math.tan(halfHorizontalFov);
+    const distanceForSphere = radius / Math.sin(Math.min(halfVerticalFov, halfHorizontalFov));
+    const desiredDistance = Math.max(distanceForHeight, distanceForWidth, distanceForSphere) * 1.1;
     const distance = clamp(desiredDistance, limits.minDistance, limits.maxDistance);
 
     this.controls.target.copy(target);

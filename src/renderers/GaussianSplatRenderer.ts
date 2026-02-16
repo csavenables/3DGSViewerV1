@@ -106,6 +106,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
     if (this.fitData) {
       return {
         center: this.fitData.center.clone(),
+        size: this.fitData.size.clone(),
         radius: this.fitData.radius,
       };
     }
@@ -139,10 +140,12 @@ export class GaussianSplatRenderer implements SplatRenderer {
     }
 
     const boxCenter = box.getCenter(center);
+    const boxSize = box.getSize(new THREE.Vector3());
     const radius = Math.max(0.6, boxCenter.distanceTo(box.max) * 1.1);
-    this.fitData = { center: boxCenter.clone(), radius };
+    this.fitData = { center: boxCenter.clone(), size: boxSize.clone(), radius };
     return {
       center: boxCenter.clone(),
+      size: boxSize,
       radius,
     };
   }

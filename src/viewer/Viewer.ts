@@ -30,11 +30,13 @@ export class Viewer {
   private readonly transitions: Transitions;
   private readonly sceneManager: SceneManager;
   private readonly inputBindings: InputBindings;
+  private readonly resizeObserver: ResizeObserver;
 
   private activeSceneId = '';
   private activeConfig: SceneConfig | null = null;
   private autoRotate = false;
   private disposed = false;
+  private pendingResizeSync = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -67,7 +69,11 @@ export class Viewer {
     const ambient = new THREE.AmbientLight('#ffffff', 0.8);
     this.scene.add(ambient);
 
+    this.resizeObserver = new ResizeObserver(() => this.scheduleResizeSync());
+    this.resizeObserver.observe(this.container);
     window.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('scroll', this.onResize);
   }
 
   async init(sceneId: string): Promise<void> {
@@ -153,7 +159,10 @@ export class Viewer {
     this.cameraController.dispose();
     this.webglRenderer.dispose();
     this.webglRenderer.setAnimationLoop(null);
+    this.resizeObserver.disconnect();
     window.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('scroll', this.onResize);
   }
 
   private applySceneConfig(config: SceneConfig): void {
@@ -181,6 +190,7 @@ export class Viewer {
     );
     const usedDistance = this.cameraController.frameTarget(
       fit.center,
+      fit.size,
       fit.radius,
       config.camera.home.fov,
       expandedLimits,
@@ -205,6 +215,21 @@ export class Viewer {
   };
 
   private onResize = (): void => {
+    this.scheduleResizeSync();
+  };
+
+  private scheduleResizeSync(): void {
+    if (this.pendingResizeSync || this.disposed) {
+      return;
+    }
+    this.pendingResizeSync = true;
+    requestAnimationFrame(() => {
+      this.pendingResizeSync = false;
+      this.syncViewport();
+    });
+  }
+
+  private syncViewport(): void {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (width <= 0 || height <= 0) {
@@ -217,5 +242,5 @@ export class Viewer {
     if (this.activeConfig) {
       this.fitCameraToContent(this.activeConfig);
     }
-  };
+  }
 }
