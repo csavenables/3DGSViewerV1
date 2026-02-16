@@ -81,24 +81,32 @@ export class GaussianSplatRenderer implements SplatRenderer {
 
     const box = new THREE.Box3();
     const center = new THREE.Vector3();
+    const sample = new THREE.Vector3();
     const transform = new THREE.Matrix4();
-    let sceneCount = 0;
+    let sampledPoints = 0;
 
     for (let sceneIndex = 0; sceneIndex < this.sceneIdOrder.length; sceneIndex += 1) {
       const scene = this.viewer.getSplatScene(sceneIndex);
       transform.compose(scene.position, scene.quaternion, scene.scale);
-      center.copy(scene.splatBuffer.sceneCenter ?? new THREE.Vector3(0, 0, 0)).applyMatrix4(transform);
-      box.expandByPoint(center);
-      sceneCount += 1;
+      const count = scene.splatBuffer.getSplatCount();
+
+      // Sample splat centers to approximate full bounds without processing every point.
+      const maxSamplesPerScene = 15000;
+      const step = Math.max(1, Math.floor(count / maxSamplesPerScene));
+      for (let splatIndex = 0; splatIndex < count; splatIndex += step) {
+        scene.splatBuffer.getSplatCenter(splatIndex, sample, transform);
+        box.expandByPoint(sample);
+        sampledPoints += 1;
+      }
     }
 
-    if (sceneCount === 0 || box.isEmpty()) {
+    if (sampledPoints === 0 || box.isEmpty()) {
       return null;
     }
 
-    const boxCenter = box.getCenter(new THREE.Vector3());
-    const radius = Math.max(0.6, boxCenter.distanceTo(box.max) + 0.8);
-    this.fitData = { center: boxCenter, radius };
+    const boxCenter = box.getCenter(center);
+    const radius = Math.max(0.6, boxCenter.distanceTo(box.max) * 1.1);
+    this.fitData = { center: boxCenter.clone(), radius };
     return {
       center: boxCenter.clone(),
       radius,

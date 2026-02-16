@@ -65,14 +65,18 @@ export class CameraController {
     fovDegrees: number,
     limits: CameraLimitsConfig,
     referenceDirection: THREE.Vector3,
-  ): void {
+  ): number {
     const direction = referenceDirection.clone().normalize();
     if (direction.lengthSq() === 0) {
       direction.set(0, 0, 1);
     }
 
-    const halfFovRad = THREE.MathUtils.degToRad(fovDegrees * 0.5);
-    const desiredDistance = radius / Math.tan(Math.max(0.01, halfFovRad));
+    const halfVerticalFov = THREE.MathUtils.degToRad(fovDegrees * 0.5);
+    const halfHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * this.camera.aspect);
+    const halfLimitingFov = Math.max(0.01, Math.min(halfVerticalFov, halfHorizontalFov));
+
+    // Use spherical fit with margin so the whole splat is visible on narrow and wide screens.
+    const desiredDistance = (radius / Math.sin(halfLimitingFov)) * 1.08;
     const distance = clamp(desiredDistance, limits.minDistance, limits.maxDistance);
 
     this.controls.target.copy(target);
@@ -80,6 +84,7 @@ export class CameraController {
     this.camera.fov = fovDegrees;
     this.camera.updateProjectionMatrix();
     this.controls.update();
+    return distance;
   }
 
   update(nowMs: number): void {

@@ -167,15 +167,30 @@ export class Viewer {
       return;
     }
 
+    const expandedLimits = {
+      ...config.camera.limits,
+      maxDistance: Math.max(config.camera.limits.maxDistance, fit.radius * 8),
+    };
+    this.cameraController.applyLimits(expandedLimits, config.ui.enablePan);
+
     const direction = new THREE.Vector3(...config.camera.home.position).sub(
       new THREE.Vector3(...config.camera.home.target),
     );
-    this.cameraController.frameTarget(
+    const usedDistance = this.cameraController.frameTarget(
       fit.center,
       fit.radius,
       config.camera.home.fov,
-      config.camera.limits,
+      expandedLimits,
       direction,
+    );
+
+    // Keep enough zoom-out headroom after fitting.
+    this.cameraController.applyLimits(
+      {
+        ...expandedLimits,
+        maxDistance: Math.max(expandedLimits.maxDistance, usedDistance * 2.5),
+      },
+      config.ui.enablePan,
     );
   }
 
