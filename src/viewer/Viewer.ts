@@ -89,7 +89,7 @@ export class Viewer {
       this.ui.clearError();
       this.activeSceneId = sceneId;
       const config = await this.sceneManager.loadScene(sceneId);
-      this.applySceneConfig(config, true);
+      this.applySceneConfig(config);
       this.ui.setLoading(false);
     } catch (error) {
       this.ui.setLoading(false);
@@ -153,13 +153,30 @@ export class Viewer {
     window.removeEventListener('resize', this.onResize);
   }
 
-  private applySceneConfig(config: SceneConfig, setHomeImmediately: boolean): void {
+  private applySceneConfig(config: SceneConfig): void {
     this.cameraController.applyLimits(config.camera.limits, config.ui.enablePan);
-    if (setHomeImmediately) {
-      this.cameraController.setHomeImmediately(config.camera.home);
-    }
+    this.fitCameraToContent(config);
     this.autoRotate = config.ui.autorotateDefaultOn && config.ui.enableAutorotate;
     this.cameraController.setAutoRotate(this.autoRotate);
+  }
+
+  private fitCameraToContent(config: SceneConfig): void {
+    const fit = this.splatRenderer.getFitData();
+    if (!fit) {
+      this.cameraController.setHomeImmediately(config.camera.home);
+      return;
+    }
+
+    const direction = new THREE.Vector3(...config.camera.home.position).sub(
+      new THREE.Vector3(...config.camera.home.target),
+    );
+    this.cameraController.frameTarget(
+      fit.center,
+      fit.radius,
+      config.camera.home.fov,
+      config.camera.limits,
+      direction,
+    );
   }
 
   private onFrame = (): void => {

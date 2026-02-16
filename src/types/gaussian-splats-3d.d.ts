@@ -40,8 +40,18 @@ declare module '@mkkellogg/gaussian-splats-3d' {
     splatAlphaRemovalThreshold?: number;
   }
 
-  export interface SplatSceneHandle {
+  export interface SplatBufferHandle {
+    getSplatCount(): number;
+    getSplatCenter(index: number, outCenter: THREE.Vector3, transform?: THREE.Matrix4): void;
+    sceneCenter?: THREE.Vector3;
+  }
+
+  export interface SplatSceneHandle extends THREE.Object3D {
     visible: boolean;
+    position: THREE.Vector3;
+    quaternion: THREE.Quaternion;
+    scale: THREE.Vector3;
+    splatBuffer: SplatBufferHandle;
   }
 
   export class Viewer {

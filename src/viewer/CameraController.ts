@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CameraHomeConfig, CameraLimitsConfig } from '../config/schema';
+import { clamp } from '../utils/clamp';
 import { easeInOutCubic } from '../utils/easing';
 
 interface ResetAnimation {
@@ -54,6 +55,29 @@ export class CameraController {
     this.camera.position.set(...home.position);
     this.controls.target.set(...home.target);
     this.camera.fov = home.fov;
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  frameTarget(
+    target: THREE.Vector3,
+    radius: number,
+    fovDegrees: number,
+    limits: CameraLimitsConfig,
+    referenceDirection: THREE.Vector3,
+  ): void {
+    const direction = referenceDirection.clone().normalize();
+    if (direction.lengthSq() === 0) {
+      direction.set(0, 0, 1);
+    }
+
+    const halfFovRad = THREE.MathUtils.degToRad(fovDegrees * 0.5);
+    const desiredDistance = radius / Math.tan(Math.max(0.01, halfFovRad));
+    const distance = clamp(desiredDistance, limits.minDistance, limits.maxDistance);
+
+    this.controls.target.copy(target);
+    this.camera.position.copy(target.clone().add(direction.multiplyScalar(distance)));
+    this.camera.fov = fovDegrees;
     this.camera.updateProjectionMatrix();
     this.controls.update();
   }

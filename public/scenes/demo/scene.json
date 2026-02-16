@@ -7,7 +7,7 @@
       "src": "scenes/demo/splats/export_05000.ply",
       "transform": {
         "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
+        "rotation": [180, 0, 0],
         "scale": [1, 1, 1]
       },
       "visibleDefault": true
