@@ -8,7 +8,7 @@ export class SceneConfigError extends Error {
 }
 
 export async function loadSceneConfig(sceneId: string): Promise<SceneConfig> {
-  const url = `/scenes/${sceneId}/scene.json`;
+  const url = `${import.meta.env.BASE_URL}scenes/${sceneId}/scene.json`;
 
   let response: Response;
   try {

@@ -10,7 +10,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export async function loadSceneManifest(): Promise<SceneManifestEntry[]> {
   let response: Response;
   try {
-    response = await fetch('/scenes/manifest.json');
+    response = await fetch(`${import.meta.env.BASE_URL}scenes/manifest.json`);
   } catch {
     return [];
   }
