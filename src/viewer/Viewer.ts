@@ -32,6 +32,7 @@ export class Viewer {
   private readonly inputBindings: InputBindings;
 
   private activeSceneId = '';
+  private activeConfig: SceneConfig | null = null;
   private autoRotate = false;
   private disposed = false;
 
@@ -89,6 +90,7 @@ export class Viewer {
       this.ui.clearError();
       this.activeSceneId = sceneId;
       const config = await this.sceneManager.loadScene(sceneId);
+      this.activeConfig = config;
       this.applySceneConfig(config);
       this.ui.setLoading(false);
     } catch (error) {
@@ -145,6 +147,7 @@ export class Viewer {
       return;
     }
     this.disposed = true;
+    this.activeConfig = null;
     this.inputBindings.dispose();
     void this.sceneManager.dispose();
     this.cameraController.dispose();
@@ -210,5 +213,9 @@ export class Viewer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.webglRenderer.setSize(width, height);
+
+    if (this.activeConfig) {
+      this.fitCameraToContent(this.activeConfig);
+    }
   };
 }

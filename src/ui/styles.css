@@ -184,9 +184,34 @@ body,
 }
 
 @media (max-width: 768px) {
+  .app-header {
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
   .app-header,
   .app-footer {
     padding: 0.6rem;
+  }
+
+  .header-scene-controls {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+  }
+
+  .scene-select {
+    max-width: 48vw;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+
+  .app-footer p {
+    display: none;
   }
 
   .toolbar {
