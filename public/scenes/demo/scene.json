@@ -1,0 +1,61 @@
+{
+  "id": "demo",
+  "title": "Demo Product Scene",
+  "assets": [
+    {
+      "id": "product_main",
+      "src": "/scenes/demo/splats/product_main.ply",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      },
+      "visibleDefault": true
+    },
+    {
+      "id": "part_detail_01",
+      "src": "/scenes/demo/splats/part_detail_01.ply",
+      "transform": {
+        "position": [0.2, 0.1, 0],
+        "rotation": [0, 25, 0],
+        "scale": [0.8, 0.8, 0.8]
+      },
+      "visibleDefault": true
+    },
+    {
+      "id": "part_detail_02",
+      "src": "/scenes/demo/splats/part_detail_02.ply",
+      "transform": {
+        "position": [-0.2, -0.1, 0],
+        "rotation": [0, -15, 0],
+        "scale": [0.7, 0.7, 0.7]
+      },
+      "visibleDefault": true
+    }
+  ],
+  "camera": {
+    "home": {
+      "position": [0, 0.15, 1.8],
+      "target": [0, 0, 0],
+      "fov": 50
+    },
+    "limits": {
+      "minDistance": 0.4,
+      "maxDistance": 4,
+      "minPolarAngle": 0.4,
+      "maxPolarAngle": 2.6
+    },
+    "transitionMs": 700
+  },
+  "ui": {
+    "enableFullscreen": true,
+    "enableAutorotate": true,
+    "enableReset": true,
+    "enablePan": true,
+    "autorotateDefaultOn": false
+  },
+  "transitions": {
+    "sceneFadeMs": 350,
+    "fadeColour": "#000000"
+  }
+}

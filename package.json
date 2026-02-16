@@ -1,0 +1,31 @@
+{
+  "name": "3dgsviewerv1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mkkellogg/gaussian-splats-3d": "0.4.7",
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.1",
+    "@types/three": "0.160.0",
+    "@typescript-eslint/eslint-plugin": "8.18.1",
+    "@typescript-eslint/parser": "8.18.1",
+    "eslint": "9.39.2",
+    "eslint-config-prettier": "9.1.0",
+    "jsdom": "25.0.1",
+    "prettier": "3.4.2",
+    "typescript": "5.7.2",
+    "vite": "5.4.21",
+    "vitest": "2.1.9"
+  }
+}

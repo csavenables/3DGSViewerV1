@@ -1,0 +1,16 @@
+{
+  "scenes": [
+    {
+      "id": "demo",
+      "title": "Demo Product Scene"
+    },
+    {
+      "id": "demo2",
+      "title": "Detail Focus Scene"
+    },
+    {
+      "id": "demo3",
+      "title": "Wide Presentation Scene"
+    }
+  ]
+}

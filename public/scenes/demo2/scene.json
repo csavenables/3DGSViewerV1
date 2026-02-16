@@ -1,0 +1,61 @@
+{
+  "id": "demo2",
+  "title": "Detail Focus Scene",
+  "assets": [
+    {
+      "id": "product_main",
+      "src": "/scenes/demo2/splats/product_main.ply",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [0, 15, 0],
+        "scale": [1, 1, 1]
+      },
+      "visibleDefault": true
+    },
+    {
+      "id": "part_detail_01",
+      "src": "/scenes/demo2/splats/part_detail_01.ply",
+      "transform": {
+        "position": [0.28, 0.1, 0.05],
+        "rotation": [0, 35, 0],
+        "scale": [0.95, 0.95, 0.95]
+      },
+      "visibleDefault": true
+    },
+    {
+      "id": "part_detail_02",
+      "src": "/scenes/demo2/splats/part_detail_02.ply",
+      "transform": {
+        "position": [-0.26, -0.08, -0.02],
+        "rotation": [0, -35, 0],
+        "scale": [0.85, 0.85, 0.85]
+      },
+      "visibleDefault": true
+    }
+  ],
+  "camera": {
+    "home": {
+      "position": [0.1, 0.2, 1.4],
+      "target": [0, 0, 0],
+      "fov": 45
+    },
+    "limits": {
+      "minDistance": 0.3,
+      "maxDistance": 3.5,
+      "minPolarAngle": 0.35,
+      "maxPolarAngle": 2.65
+    },
+    "transitionMs": 700
+  },
+  "ui": {
+    "enableFullscreen": true,
+    "enableAutorotate": true,
+    "enableReset": true,
+    "enablePan": true,
+    "autorotateDefaultOn": false
+  },
+  "transitions": {
+    "sceneFadeMs": 350,
+    "fadeColour": "#000000"
+  }
+}
