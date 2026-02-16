@@ -14,13 +14,11 @@ function toQuaternionArray(rotationDegrees: [number, number, number]): [number, 
 }
 
 export class GaussianSplatRenderer implements SplatRenderer {
-  private context: RendererContext | null = null;
   private viewer: GaussianSplats3D.Viewer | null = null;
   private sceneIdOrder: string[] = [];
   private fitData: SplatFitData | null = null;
 
   async initialize(context: RendererContext): Promise<void> {
-    this.context = context;
     this.viewer = this.createViewer(context);
   }
 
@@ -59,14 +57,15 @@ export class GaussianSplatRenderer implements SplatRenderer {
   }
 
   async clear(): Promise<void> {
-    if (!this.context || !this.viewer) {
+    if (!this.viewer) {
       return;
     }
-
-    await this.viewer.dispose();
-    this.viewer = this.createViewer(this.context);
-    this.sceneIdOrder = [];
+    for (let sceneIndex = this.sceneIdOrder.length - 1; sceneIndex >= 0; sceneIndex -= 1) {
+      await this.viewer.removeSplatScene(sceneIndex, false);
+    }
+    this.sceneIdOrder.length = 0;
     this.fitData = null;
+    this.viewer.forceRenderNextFrame();
   }
 
   getFitData(): SplatFitData | null {
@@ -81,36 +80,27 @@ export class GaussianSplatRenderer implements SplatRenderer {
     }
 
     const box = new THREE.Box3();
-    const temp = new THREE.Vector3();
+    const center = new THREE.Vector3();
     const transform = new THREE.Matrix4();
-    let sampledPoints = 0;
+    let sceneCount = 0;
 
     for (let sceneIndex = 0; sceneIndex < this.sceneIdOrder.length; sceneIndex += 1) {
       const scene = this.viewer.getSplatScene(sceneIndex);
-      const count = scene.splatBuffer.getSplatCount();
-      if (count <= 0) {
-        continue;
-      }
-
       transform.compose(scene.position, scene.quaternion, scene.scale);
-      const maxSamplesPerScene = 20000;
-      const step = Math.max(1, Math.floor(count / maxSamplesPerScene));
-      for (let splatIndex = 0; splatIndex < count; splatIndex += step) {
-        scene.splatBuffer.getSplatCenter(splatIndex, temp, transform);
-        box.expandByPoint(temp);
-        sampledPoints += 1;
-      }
+      center.copy(scene.splatBuffer.sceneCenter ?? new THREE.Vector3(0, 0, 0)).applyMatrix4(transform);
+      box.expandByPoint(center);
+      sceneCount += 1;
     }
 
-    if (sampledPoints === 0 || box.isEmpty()) {
+    if (sceneCount === 0 || box.isEmpty()) {
       return null;
     }
 
-    const center = box.getCenter(new THREE.Vector3());
-    const radius = Math.max(0.1, center.distanceTo(box.max) * 1.15);
-    this.fitData = { center, radius };
+    const boxCenter = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(0.6, boxCenter.distanceTo(box.max) + 0.8);
+    this.fitData = { center: boxCenter, radius };
     return {
-      center: center.clone(),
+      center: boxCenter.clone(),
       radius,
     };
   }
@@ -129,7 +119,6 @@ export class GaussianSplatRenderer implements SplatRenderer {
     }
     await this.viewer.dispose();
     this.viewer = null;
-    this.context = null;
     this.sceneIdOrder = [];
     this.fitData = null;
   }
