@@ -7,10 +7,11 @@
 - TypeScript strict mode with a modular viewer architecture.
 - Scene config loading and runtime schema validation with friendly error states.
 - Configurable camera home view, orbit/pan/zoom limits, and smooth reset transitions.
-- Multi-splat scene loading (`.ply`) with per-asset transforms and visibility defaults.
+- Multi-splat scene loading with supported formats: `.ply`, `.splat`, `.ksplat`, `.spz`.
 - Fade-out/fade-in scene transitions and basic loading UX.
 - Scene switching via `public/scenes/manifest.json` (no code changes required to add scenes).
 - Minimal responsive toolbar for reset, fullscreen, and auto-rotate.
+- Friendly failures for invalid/unsupported scene assets.
 
 ## Getting Started
 
@@ -45,3 +46,13 @@ npm run preview
 3. Update `public/scenes/<clientSceneId>/scene.json`.
 4. Add the new scene to `public/scenes/manifest.json`.
 5. Load with query param, e.g. `?scene=clientSceneId`.
+
+## Deployment
+
+- GitHub Pages and Cloudflare Pages are both supported.
+- See `docs/DEPLOYMENT.md`.
+
+## Checklists & Ops
+
+- Client duplication guide: `docs/CLIENT_DUPLICATION_WORKFLOW.md`
+- Mobile QA checklist: `docs/MOBILE_QA_CHECKLIST.md`
