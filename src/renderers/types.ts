@@ -15,6 +15,7 @@ export interface RendererContext {
 
 export interface SplatRenderer {
   initialize(context: RendererContext): Promise<void>;
+  loadSplats(assets: SplatAssetConfig[]): Promise<void>;
   loadSplat(asset: SplatAssetConfig): Promise<void>;
   setVisible(id: string, visible: boolean): void;
   clear(): Promise<void>;

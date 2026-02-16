@@ -30,9 +30,7 @@ export class SceneManager {
 
     this.events.onLoading('Loading splat assets...');
     await this.renderer.clear();
-    for (const asset of config.assets) {
-      await this.renderer.loadSplat(asset);
-    }
+    await this.renderer.loadSplats(config.assets);
 
     this.activeConfig = config;
     this.events.onReady(config);

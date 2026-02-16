@@ -23,20 +23,43 @@ export class GaussianSplatRenderer implements SplatRenderer {
   }
 
   async loadSplat(asset: SplatAssetConfig): Promise<void> {
+    await this.loadSplats([asset]);
+  }
+
+  async loadSplats(assets: SplatAssetConfig[]): Promise<void> {
     if (!this.viewer) {
       throw new Error('Renderer not initialized.');
     }
+    if (assets.length === 0) {
+      return;
+    }
 
-    await this.viewer.addSplatScene(asset.src, {
-      showLoadingUI: false,
-      position: asset.transform.position,
-      rotation: toQuaternionArray(asset.transform.rotation),
-      scale: asset.transform.scale,
-      visible: asset.visibleDefault,
-      splatAlphaRemovalThreshold: 1,
-    });
+    if (assets.length === 1) {
+      const asset = assets[0];
+      await this.viewer.addSplatScene(asset.src, {
+        showLoadingUI: false,
+        position: asset.transform.position,
+        rotation: toQuaternionArray(asset.transform.rotation),
+        scale: asset.transform.scale,
+        visible: asset.visibleDefault,
+        splatAlphaRemovalThreshold: 1,
+      });
+    } else {
+      await this.viewer.addSplatScenes(
+        assets.map((asset) => ({
+          path: asset.src,
+          position: asset.transform.position,
+          rotation: toQuaternionArray(asset.transform.rotation),
+          scale: asset.transform.scale,
+          visible: asset.visibleDefault,
+          splatAlphaRemovalThreshold: 1,
+          showLoadingUI: false,
+        })),
+        false,
+      );
+    }
 
-    this.sceneIdOrder.push(asset.id);
+    this.sceneIdOrder.push(...assets.map((asset) => asset.id));
     this.fitData = null;
     this.viewer.forceRenderNextFrame();
   }

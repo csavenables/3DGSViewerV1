@@ -57,6 +57,10 @@ declare module '@mkkellogg/gaussian-splats-3d' {
   export class Viewer {
     constructor(options?: ViewerOptions);
     addSplatScene(path: string, options?: AddSplatSceneOptions): Promise<void>;
+    addSplatScenes(
+      scenes: Array<AddSplatSceneOptions & { path: string }>,
+      showLoadingUI?: boolean,
+    ): Promise<void>;
     removeSplatScene(sceneIndex: number, showLoadingUI?: boolean): Promise<void>;
     getSplatScene(sceneIndex: number): SplatSceneHandle;
     forceRenderNextFrame(): void;
