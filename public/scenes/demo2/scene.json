@@ -4,7 +4,7 @@
   "assets": [
     {
       "id": "product_main",
-      "src": "/scenes/demo2/splats/product_main.ply",
+      "src": "scenes/demo2/splats/product_main.ply",
       "transform": {
         "position": [0, 0, 0],
         "rotation": [0, 15, 0],
@@ -14,7 +14,7 @@
     },
     {
       "id": "part_detail_01",
-      "src": "/scenes/demo2/splats/part_detail_01.ply",
+      "src": "scenes/demo2/splats/part_detail_01.ply",
       "transform": {
         "position": [0.28, 0.1, 0.05],
         "rotation": [0, 35, 0],
@@ -24,7 +24,7 @@
     },
     {
       "id": "part_detail_02",
-      "src": "/scenes/demo2/splats/part_detail_02.ply",
+      "src": "scenes/demo2/splats/part_detail_02.ply",
       "transform": {
         "position": [-0.26, -0.08, -0.02],
         "rotation": [0, -35, 0],
@@ -59,3 +59,4 @@
     "fadeColour": "#000000"
   }
 }
+
