@@ -35,5 +35,33 @@ export async function loadSceneConfig(sceneId: string): Promise<SceneConfig> {
     throw new SceneConfigError(`Scene config validation failed for "${url}".`, validation.errors);
   }
 
-  return validation.data;
+  return normalizeAssetPaths(validation.data);
+}
+
+function normalizeAssetPaths(config: SceneConfig): SceneConfig {
+  const normalizedAssets = config.assets.map((asset) => ({
+    ...asset,
+    src: resolveAssetPath(asset.src),
+  }));
+
+  return {
+    ...config,
+    assets: normalizedAssets,
+  };
+}
+
+function resolveAssetPath(path: string): string {
+  if (isExternalPath(path)) {
+    return path;
+  }
+
+  if (path.startsWith('/')) {
+    return `${import.meta.env.BASE_URL}${path.slice(1)}`;
+  }
+
+  return path;
+}
+
+function isExternalPath(path: string): boolean {
+  return /^(?:[a-z]+:)?\/\//i.test(path) || path.startsWith('data:');
 }
