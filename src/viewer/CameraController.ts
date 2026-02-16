@@ -59,6 +59,14 @@ export class CameraController {
     this.controls.update();
   }
 
+  getCurrentHome(): CameraHomeConfig {
+    return {
+      position: [this.camera.position.x, this.camera.position.y, this.camera.position.z],
+      target: [this.controls.target.x, this.controls.target.y, this.controls.target.z],
+      fov: this.camera.fov,
+    };
+  }
+
   frameTarget(
     target: THREE.Vector3,
     size: THREE.Vector3,

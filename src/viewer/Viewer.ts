@@ -34,6 +34,7 @@ export class Viewer {
 
   private activeSceneId = '';
   private activeConfig: SceneConfig | null = null;
+  private fittedHome: SceneConfig['camera']['home'] | null = null;
   private autoRotate = false;
   private disposed = false;
   private pendingResizeSync = false;
@@ -94,10 +95,10 @@ export class Viewer {
 
     try {
       this.ui.clearError();
-      this.activeSceneId = sceneId;
       const config = await this.sceneManager.loadScene(sceneId);
       this.activeConfig = config;
       this.applySceneConfig(config);
+      this.activeSceneId = sceneId;
       this.ui.setLoading(false);
     } catch (error) {
       this.ui.setLoading(false);
@@ -118,7 +119,7 @@ export class Viewer {
     if (!config) {
       return;
     }
-    this.cameraController.resetToHome(config.camera.home, config.camera.transitionMs);
+    this.cameraController.setHomeImmediately(this.fittedHome ?? config.camera.home);
   }
 
   toggleAutorotate(): boolean {
@@ -154,6 +155,7 @@ export class Viewer {
     }
     this.disposed = true;
     this.activeConfig = null;
+    this.fittedHome = null;
     this.inputBindings.dispose();
     void this.sceneManager.dispose();
     this.cameraController.dispose();
@@ -176,6 +178,7 @@ export class Viewer {
     const fit = this.splatRenderer.getFitData();
     if (!fit) {
       this.cameraController.setHomeImmediately(config.camera.home);
+      this.fittedHome = config.camera.home;
       return;
     }
 
@@ -205,6 +208,7 @@ export class Viewer {
       },
       config.ui.enablePan,
     );
+    this.fittedHome = this.cameraController.getCurrentHome();
   }
 
   private onFrame = (): void => {
