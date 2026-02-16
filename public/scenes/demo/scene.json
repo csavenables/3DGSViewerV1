@@ -4,7 +4,7 @@
   "assets": [
     {
       "id": "product_main",
-      "src": "scenes/demo/splats/export_05000.ply",
+      "src": "scenes/demo/splats/Synthetic1compressed.ply",
       "transform": {
         "position": [0, 0, 0],
         "rotation": [180, 0, 0],
