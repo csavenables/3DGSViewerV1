@@ -126,7 +126,7 @@ export class SceneManager {
     return this.activeItems.map((item) => ({ ...item }));
   }
 
-  async activateSplat(id: string): Promise<boolean> {
+  async activateSplat(id: string, onBeforeReveal?: () => void | Promise<void>): Promise<boolean> {
     if (!this.activeConfig) {
       return false;
     }
@@ -166,6 +166,9 @@ export class SceneManager {
     targetItem.active = true;
     this.currentActiveId = id;
     await this.prepareRevealStart([targetHandle], reveal);
+    if (onBeforeReveal) {
+      await onBeforeReveal();
+    }
     await this.revealController.revealIn(targetHandle, targetHandle.boundsY, reveal);
     if (localVersion !== this.opVersion) {
       return false;

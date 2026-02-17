@@ -57,6 +57,7 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
 
   const loader: LoaderController = createLoader(viewerHost);
   const toolbar = createToolbar(footer, actions);
+  let splatBusyAll = false;
 
   return {
     toolbar,
@@ -103,7 +104,7 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
         button.textContent = item.label;
         button.classList.toggle('active', item.active);
         button.classList.toggle('failed', item.failed);
-        button.disabled = !item.loaded || item.failed;
+        button.disabled = splatBusyAll || !item.loaded || item.failed;
         button.onclick = () => {
           if (button.disabled) {
             return;
@@ -121,13 +122,15 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
       button.disabled = busy;
       button.classList.toggle('busy', busy);
     },
-    setSplatActive(id: string, active: boolean): void {
-      const button = splatControls.querySelector<HTMLButtonElement>(`button[data-splat-id="${id}"]`);
-      if (!button) {
-        return;
+    setSplatBusyAll(busy: boolean): void {
+      splatBusyAll = busy;
+      const buttons = splatControls.querySelectorAll<HTMLButtonElement>('button[data-splat-id]');
+      for (const button of buttons) {
+        const loaded = button.dataset.loaded === 'true';
+        const failed = button.classList.contains('failed');
+        button.disabled = busy || !loaded || failed;
+        button.classList.toggle('busy', busy);
       }
-      button.dataset.active = active ? 'true' : 'false';
-      button.classList.toggle('active', active);
     },
     getOverlayElement(): HTMLElement {
       return overlay;

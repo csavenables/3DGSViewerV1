@@ -13,7 +13,7 @@ export interface ViewerUi {
   setSceneTitle(title: string): void;
   setSplatOptions(items: SplatToggleItem[], onSelect: (id: string) => void): void;
   setSplatBusy(id: string, busy: boolean): void;
-  setSplatActive(id: string, active: boolean): void;
+  setSplatBusyAll(busy: boolean): void;
   getOverlayElement(): HTMLElement;
   getCanvasHostElement(): HTMLElement;
 }
@@ -176,17 +176,17 @@ export class Viewer {
   }
 
   private async selectSplat(id: string): Promise<void> {
-    this.ui.setSplatBusy(id, true);
+    this.ui.setSplatBusyAll(true);
     try {
-      const active = await this.sceneManager.activateSplat(id);
-      this.ui.setSplatActive(id, active);
-      if (this.activeConfig) {
-        this.fitCameraToContent(this.activeConfig);
-      }
+      await this.sceneManager.activateSplat(id, () => {
+        if (this.activeConfig) {
+          this.fitCameraToContent(this.activeConfig);
+        }
+      });
     } catch {
-      this.ui.setSplatActive(id, false);
+      // no-op: SceneManager emits authoritative item state
     } finally {
-      this.ui.setSplatBusy(id, false);
+      this.ui.setSplatBusyAll(false);
     }
   }
 

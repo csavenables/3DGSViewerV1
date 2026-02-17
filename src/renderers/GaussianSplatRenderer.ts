@@ -278,7 +278,6 @@ export class GaussianSplatRenderer implements SplatRenderer {
         }
       },
       setRevealParams: (params: SplatRevealParams): void => {
-        this.applySceneOpacityReveal(object3D, params, handle.boundsY);
         if (revealBinding) {
           revealBinding.uniforms.uRevealEnabled.value[sceneIndex] = params.enabled ? 1 : 0;
           revealBinding.uniforms.uRevealY.value[sceneIndex] = params.revealY;
@@ -288,6 +287,9 @@ export class GaussianSplatRenderer implements SplatRenderer {
         } else if (!this.warnedRevealFallback) {
           console.warn('Y-ramp shader reveal unavailable. Using scene opacity dissolve fallback.');
           this.warnedRevealFallback = true;
+          this.applySceneOpacityReveal(object3D, params, handle.boundsY);
+        } else {
+          this.applySceneOpacityReveal(object3D, params, handle.boundsY);
         }
         this.viewer?.forceRenderNextFrame();
       },
