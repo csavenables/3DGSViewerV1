@@ -108,7 +108,11 @@ export class GaussianSplatRenderer implements SplatRenderer {
     if (!handle) {
       return;
     }
+    if (handle.object3D.visible === visible) {
+      return;
+    }
     handle.object3D.visible = visible;
+    this.fitData = null;
     this.viewer?.forceRenderNextFrame();
   }
 
