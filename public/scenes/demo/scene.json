@@ -4,7 +4,7 @@
   "assets": [
     {
       "id": "product_main",
-      "src": "scenes/demo/splats/Synthetic1compressed.ply",
+      "src": "scenes/demo/splats/Synthetic1.splat",
       "transform": {
         "position": [0, 0, 0],
         "rotation": [180, 0, 0],
@@ -31,6 +31,26 @@
         "scale": [0.7, 0.7, 0.7]
       },
       "visibleDefault": true
+    },
+    {
+      "id": "flowers",
+      "src": "scenes/demo/splats/gs_Flowers_Luma_detail_pass.splat",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      },
+      "visibleDefault": false
+    },
+    {
+      "id": "church",
+      "src": "scenes/demo/splats/gs_Church_Arch.splat",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      },
+      "visibleDefault": false
     }
   ],
   "camera": {
