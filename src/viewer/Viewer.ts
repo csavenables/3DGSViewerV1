@@ -4,6 +4,7 @@ import { GaussianSplatRenderer } from '../renderers/GaussianSplatRenderer';
 import { InputBindings } from './InputBindings';
 import { CameraController } from './CameraController';
 import { SceneManager, SplatToggleItem } from './SceneManager';
+import { easeInOutCubic } from '../utils/easing';
 
 export interface ViewerUi {
   setLoading(loading: boolean, message?: string): void;
@@ -34,6 +35,7 @@ export class Viewer {
   private autoRotate = false;
   private disposed = false;
   private pendingResizeSync = false;
+  private overlayAnimationToken = 0;
 
   constructor(
     private readonly container: HTMLElement,
@@ -98,7 +100,10 @@ export class Viewer {
       this.ui.setSplatOptions(this.sceneManager.getSplatItems(), (id, nextVisible) => {
         void this.toggleSplatVisibility(id, nextVisible);
       });
-      await this.sceneManager.revealActiveScene();
+      await Promise.all([
+        this.sceneManager.revealActiveScene(),
+        this.playBottomUpScreenReveal(config.reveal.durationMs),
+      ]);
     } catch (error) {
       this.ui.setLoading(false);
       const message = error instanceof Error ? error.message : 'Unknown error while loading scene.';
@@ -176,7 +181,13 @@ export class Viewer {
   private async toggleSplatVisibility(id: string, nextVisible: boolean): Promise<void> {
     this.ui.setSplatBusy(id, true);
     try {
-      const finalVisible = await this.sceneManager.setSplatVisible(id, nextVisible);
+      const revealDuration = this.activeConfig?.reveal.durationMs ?? 1000;
+      const finalVisible = await Promise.all([
+        this.sceneManager.setSplatVisible(id, nextVisible),
+        nextVisible
+          ? this.playBottomUpScreenReveal(revealDuration)
+          : this.playTopDownScreenFade(revealDuration),
+      ]).then(([visible]) => visible);
       this.ui.setSplatVisible(id, finalVisible);
       if (this.activeConfig) {
         this.fitCameraToContent(this.activeConfig);
@@ -260,5 +271,52 @@ export class Viewer {
     if (this.activeConfig) {
       this.fitCameraToContent(this.activeConfig);
     }
+  }
+
+  private async playBottomUpScreenReveal(durationMs: number): Promise<void> {
+    await this.animateScreenRamp(durationMs, 'bottom-up');
+  }
+
+  private async playTopDownScreenFade(durationMs: number): Promise<void> {
+    await this.animateScreenRamp(durationMs, 'top-down');
+  }
+
+  private async animateScreenRamp(
+    durationMs: number,
+    mode: 'bottom-up' | 'top-down',
+  ): Promise<void> {
+    const overlay = this.ui.getOverlayElement();
+    this.overlayAnimationToken += 1;
+    const token = this.overlayAnimationToken;
+    const duration = Math.max(100, durationMs);
+    const bandPercent = 16;
+    overlay.style.pointerEvents = 'none';
+    overlay.style.opacity = '1';
+
+    await new Promise<void>((resolve) => {
+      const start = performance.now();
+      const step = (now: number) => {
+        if (token !== this.overlayAnimationToken || this.disposed) {
+          overlay.style.opacity = '0';
+          resolve();
+          return;
+        }
+        const t = Math.min(1, (now - start) / duration);
+        const eased = easeInOutCubic(t);
+        const edge = mode === 'bottom-up' ? (1 - eased) * 100 : eased * 100;
+        const bandEdge = Math.min(100, edge + bandPercent);
+        overlay.style.background = `linear-gradient(to bottom, rgba(2, 4, 10, 0.96) 0%, rgba(2, 4, 10, 0.96) ${edge.toFixed(
+          2,
+        )}%, rgba(2, 4, 10, 0) ${bandEdge.toFixed(2)}%, rgba(2, 4, 10, 0) 100%)`;
+
+        if (t >= 1) {
+          overlay.style.opacity = '0';
+          resolve();
+          return;
+        }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
   }
 }

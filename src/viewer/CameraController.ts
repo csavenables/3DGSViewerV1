@@ -89,7 +89,7 @@ export class CameraController {
     const distanceForHeight = halfHeight / Math.tan(halfVerticalFov);
     const distanceForWidth = halfWidth / Math.tan(halfHorizontalFov);
     const distanceForSphere = radius / Math.sin(Math.min(halfVerticalFov, halfHorizontalFov));
-    const desiredDistance = Math.max(distanceForHeight, distanceForWidth, distanceForSphere) * 1.1;
+    const desiredDistance = Math.max(distanceForHeight, distanceForWidth, distanceForSphere) * 0.98;
     const distance = clamp(desiredDistance, limits.minDistance, limits.maxDistance);
 
     this.controls.target.copy(target);
