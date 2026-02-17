@@ -1,5 +1,5 @@
 import { loadSceneConfig } from '../config/loadSceneConfig';
-import { RevealConfig, SceneConfig, SplatAssetConfig } from '../config/schema';
+import { RevealConfig, SceneConfig } from '../config/schema';
 import { REVEAL_CONFIG_DEFAULTS, SplatHandle, SplatRenderer } from '../renderers/types';
 import { SplatRevealController } from './SplatRevealController';
 
@@ -28,9 +28,7 @@ export class SceneManager {
   private activeConfig: SceneConfig | null = null;
   private activeHandles: SplatHandle[] = [];
   private activeItems: SplatToggleItem[] = [];
-  private activeAssets: SplatAssetConfig[] = [];
   private readonly handleById = new Map<string, SplatHandle>();
-  private readonly loadingById = new Map<string, Promise<SplatHandle | null>>();
   private readonly revealController = new SplatRevealController();
   private currentActiveId: string | null = null;
   private opVersion = 0;
@@ -75,22 +73,23 @@ export class SceneManager {
         return this.activeConfig ?? config;
       }
       this.handleById.clear();
-      this.loadingById.clear();
-      this.activeAssets = config.assets;
-      this.activeHandles = [];
+      this.activeHandles = await this.renderer.loadSplats(config.assets);
       this.currentActiveId = config.assets[0]?.id ?? null;
       this.activeItems = config.assets.map((asset, index) => ({
         id: asset.id,
         label: asset.id.replaceAll('_', ' '),
         active: index === 0,
-        loaded: false,
+        loaded: true,
         failed: false,
       }));
+      for (const handle of this.activeHandles) {
+        this.handleById.set(handle.id, handle);
+      }
       this.events.onItemsChanged(this.getSplatItems());
 
       const firstAsset = config.assets[0];
       if (firstAsset) {
-        const firstHandle = await this.ensureHandleLoaded(firstAsset.id, loadVersion);
+        const firstHandle = this.handleById.get(firstAsset.id);
         if (firstHandle) {
           this.renderer.setVisible(firstAsset.id, true);
           await this.prepareRevealStart([firstHandle], config.reveal);
@@ -103,7 +102,6 @@ export class SceneManager {
 
     this.activeConfig = config;
     this.events.onReady(config);
-    void this.preloadRemainingAssets(loadVersion);
     return config;
   }
 
@@ -132,7 +130,7 @@ export class SceneManager {
     if (!this.activeConfig) {
       return false;
     }
-    const targetHandle = this.handleById.get(id) ?? (await this.ensureHandleLoaded(id, this.opVersion));
+    const targetHandle = this.handleById.get(id);
     const targetItem = this.activeItems.find((entry) => entry.id === id);
     if (!targetHandle || !targetItem || targetItem.failed) {
       return false;
@@ -179,9 +177,7 @@ export class SceneManager {
   async dispose(): Promise<void> {
     this.activeHandles = [];
     this.activeItems = [];
-    this.activeAssets = [];
     this.handleById.clear();
-    this.loadingById.clear();
     this.currentActiveId = null;
     await this.renderer.dispose();
   }
@@ -200,63 +196,4 @@ export class SceneManager {
     }
   }
 
-  private async preloadRemainingAssets(version: number): Promise<void> {
-    for (let i = 1; i < this.activeAssets.length; i += 1) {
-      if (version !== this.opVersion) {
-        return;
-      }
-      const asset = this.activeAssets[i];
-      await this.ensureHandleLoaded(asset.id, version);
-    }
-  }
-
-  private async ensureHandleLoaded(id: string, version: number): Promise<SplatHandle | null> {
-    const existing = this.handleById.get(id);
-    if (existing) {
-      return existing;
-    }
-
-    const inFlight = this.loadingById.get(id);
-    if (inFlight) {
-      return inFlight;
-    }
-
-    const asset = this.activeAssets.find((entry) => entry.id === id);
-    if (!asset) {
-      return null;
-    }
-
-    const loadPromise = (async (): Promise<SplatHandle | null> => {
-      try {
-        const handle = await this.renderer.loadSplat(asset);
-        if (version !== this.opVersion) {
-          return null;
-        }
-        this.handleById.set(id, handle);
-        this.activeHandles.push(handle);
-        this.renderer.setVisible(id, id === this.currentActiveId);
-        await this.prepareRevealStart([handle], this.activeConfig?.reveal ?? REVEAL_CONFIG_DEFAULTS);
-        const item = this.activeItems.find((entry) => entry.id === id);
-        if (item) {
-          item.loaded = true;
-          item.failed = false;
-          this.events.onItemsChanged(this.getSplatItems());
-        }
-        return handle;
-      } catch {
-        const item = this.activeItems.find((entry) => entry.id === id);
-        if (item) {
-          item.loaded = false;
-          item.failed = true;
-          this.events.onItemsChanged(this.getSplatItems());
-        }
-        return null;
-      } finally {
-        this.loadingById.delete(id);
-      }
-    })();
-
-    this.loadingById.set(id, loadPromise);
-    return loadPromise;
-  }
 }
