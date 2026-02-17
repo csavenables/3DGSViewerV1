@@ -11,34 +11,26 @@ import {
 } from './types';
 
 const SUPPORTED_EXTENSIONS = ['.ply', '.splat', '.ksplat', '.spz'] as const;
+const MAX_REVEAL_SCENES = 32;
 const REVEAL_PATCH_FLAG = '__splatRevealPatched';
-const REVEAL_UNIFORMS = {
-  uRevealEnabled: { value: 0 },
-  uRevealY: { value: 0 },
-  uRevealBand: { value: 0.12 },
-  uRevealMinY: { value: -1 },
-  uRevealMaxY: { value: 1 },
-  uRevealAffectAlpha: { value: 1 },
-  uRevealAffectSize: { value: 1 },
-};
 
 interface RevealMaterialBinding {
-  material: THREE.Material;
+  material: THREE.ShaderMaterial;
   uniforms: {
-    uRevealEnabled: { value: number };
-    uRevealY: { value: number };
-    uRevealBand: { value: number };
-    uRevealMinY: { value: number };
-    uRevealMaxY: { value: number };
-    uRevealAffectAlpha: { value: number };
-    uRevealAffectSize: { value: number };
+    uRevealEnabled: { value: number[] };
+    uRevealY: { value: number[] };
+    uRevealBand: { value: number[] };
+    uRevealMinY: { value: number[] };
+    uRevealMaxY: { value: number[] };
+    uRevealAffectAlpha: { value: number[] };
+    uRevealAffectSize: { value: number[] };
   };
 }
 
-interface ShaderLike {
-  uniforms: Record<string, unknown>;
-  vertexShader: string;
-  fragmentShader: string;
+interface InternalViewer {
+  splatMesh?: {
+    material?: THREE.ShaderMaterial;
+  };
 }
 
 function toQuaternionArray(rotationDegrees: [number, number, number]): [number, number, number, number] {
@@ -51,12 +43,17 @@ function toQuaternionArray(rotationDegrees: [number, number, number]): [number, 
   return [q.x, q.y, q.z, q.w];
 }
 
+function makeRevealUniformArrays(defaultValue: number): number[] {
+  return new Array(MAX_REVEAL_SCENES).fill(defaultValue);
+}
+
 export class GaussianSplatRenderer implements SplatRenderer {
   private viewer: GaussianSplats3D.Viewer | null = null;
   private sceneIdOrder: string[] = [];
   private handles: SplatHandle[] = [];
   private fitData: SplatFitData | null = null;
   private warnedRevealFallback = false;
+  private revealBinding: RevealMaterialBinding | null = null;
 
   async initialize(context: RendererContext): Promise<void> {
     this.viewer = this.createViewer(context);
@@ -74,6 +71,9 @@ export class GaussianSplatRenderer implements SplatRenderer {
     if (assets.length === 0) {
       return [];
     }
+    if (this.sceneIdOrder.length + assets.length > MAX_REVEAL_SCENES) {
+      throw new Error(`Reveal system supports up to ${MAX_REVEAL_SCENES} loaded splat handles.`);
+    }
     this.ensureSupportedAssetFormats(assets);
 
     const sceneIndexStart = this.sceneIdOrder.length;
@@ -83,7 +83,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
     for (let i = 0; i < assets.length; i += 1) {
       const sceneIndex = sceneIndexStart + i;
       const scene = this.viewer.getSplatScene(sceneIndex);
-      const handle = this.createSplatHandle(assets[i], scene);
+      const handle = this.createSplatHandle(assets[i], scene, sceneIndex);
       newHandles.push(handle);
     }
 
@@ -116,6 +116,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
     this.sceneIdOrder.length = 0;
     this.handles.length = 0;
     this.fitData = null;
+    this.revealBinding = null;
     this.viewer.forceRenderNextFrame();
   }
 
@@ -180,6 +181,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
     this.viewer = null;
     this.sceneIdOrder = [];
     this.fitData = null;
+    this.revealBinding = null;
   }
 
   private async loadAssetsWithViewer(assets: SplatAssetConfig[]): Promise<void> {
@@ -221,9 +223,9 @@ export class GaussianSplatRenderer implements SplatRenderer {
     }
   }
 
-  private createSplatHandle(asset: SplatAssetConfig, object3D: THREE.Object3D): SplatHandle {
+  private createSplatHandle(asset: SplatAssetConfig, object3D: THREE.Object3D, sceneIndex: number): SplatHandle {
     const bounds = this.computeBoundsFromObject(object3D);
-    const revealBindings = this.tryAttachRevealPatch(object3D);
+    const revealBinding = this.ensureRevealPatch();
 
     const handle: SplatHandle = {
       id: asset.id,
@@ -231,29 +233,26 @@ export class GaussianSplatRenderer implements SplatRenderer {
       boundsY: { ...bounds },
       setRevealBounds: (nextBounds: SplatRevealBounds): void => {
         handle.boundsY = { ...nextBounds };
-        for (const binding of revealBindings) {
-          binding.uniforms.uRevealMinY.value = nextBounds.minY;
-          binding.uniforms.uRevealMaxY.value = nextBounds.maxY;
+        if (revealBinding) {
+          revealBinding.uniforms.uRevealMinY.value[sceneIndex] = nextBounds.minY;
+          revealBinding.uniforms.uRevealMaxY.value[sceneIndex] = nextBounds.maxY;
         }
       },
       setRevealParams: (params: SplatRevealParams): void => {
-        if (revealBindings.length > 0) {
-          for (const binding of revealBindings) {
-            binding.uniforms.uRevealEnabled.value = params.enabled ? 1 : 0;
-            binding.uniforms.uRevealY.value = params.revealY;
-            binding.uniforms.uRevealBand.value = Math.max(0.0001, params.band);
-            binding.uniforms.uRevealAffectAlpha.value = params.affectAlpha ? 1 : 0;
-            binding.uniforms.uRevealAffectSize.value = params.affectSize ? 1 : 0;
-          }
+        if (revealBinding) {
+          revealBinding.uniforms.uRevealEnabled.value[sceneIndex] = params.enabled ? 1 : 0;
+          revealBinding.uniforms.uRevealY.value[sceneIndex] = params.revealY;
+          revealBinding.uniforms.uRevealBand.value[sceneIndex] = Math.max(0.0001, params.band);
+          revealBinding.uniforms.uRevealAffectAlpha.value[sceneIndex] = params.affectAlpha ? 1 : 0;
+          revealBinding.uniforms.uRevealAffectSize.value[sceneIndex] = params.affectSize ? 1 : 0;
         } else {
           this.applyFallbackAlphaReveal(object3D, params, handle.boundsY);
         }
         this.viewer?.forceRenderNextFrame();
       },
       dispose: (): void => {
-        for (const binding of revealBindings) {
-          const anyMat = binding.material as unknown as Record<string, unknown>;
-          anyMat[REVEAL_PATCH_FLAG] = false;
+        if (revealBinding) {
+          revealBinding.uniforms.uRevealEnabled.value[sceneIndex] = 0;
         }
       },
     };
@@ -270,65 +269,51 @@ export class GaussianSplatRenderer implements SplatRenderer {
     return { minY: box.min.y, maxY: box.max.y };
   }
 
-  private tryAttachRevealPatch(root: THREE.Object3D): RevealMaterialBinding[] {
-    const bindings: RevealMaterialBinding[] = [];
-    root.traverse((node) => {
-      const withMaterial = node as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
-      if (!withMaterial.material) {
-        return;
-      }
-      const materials = Array.isArray(withMaterial.material)
-        ? withMaterial.material
-        : [withMaterial.material];
-      for (const material of materials) {
-        const binding = this.patchRevealMaterial(material);
-        if (binding) {
-          bindings.push(binding);
-        }
-      }
-    });
-    return bindings;
+  private ensureRevealPatch(): RevealMaterialBinding | null {
+    if (this.revealBinding) {
+      return this.revealBinding;
+    }
+    const anyViewer = this.viewer as unknown as InternalViewer | null;
+    const material = anyViewer?.splatMesh?.material;
+    if (!material) {
+      return null;
+    }
+    this.revealBinding = this.patchRevealMaterial(material);
+    return this.revealBinding;
   }
 
-  private patchRevealMaterial(material: THREE.Material): RevealMaterialBinding | null {
+  private patchRevealMaterial(material: THREE.ShaderMaterial): RevealMaterialBinding {
     const tagged = material as unknown as Record<string, unknown>;
     if (tagged[REVEAL_PATCH_FLAG] === true) {
       const existing = tagged.__splatRevealBinding as RevealMaterialBinding | undefined;
-      return existing ?? null;
+      if (existing) {
+        return existing;
+      }
     }
 
     const uniforms = {
-      uRevealEnabled: { ...REVEAL_UNIFORMS.uRevealEnabled },
-      uRevealY: { ...REVEAL_UNIFORMS.uRevealY },
-      uRevealBand: { ...REVEAL_UNIFORMS.uRevealBand },
-      uRevealMinY: { ...REVEAL_UNIFORMS.uRevealMinY },
-      uRevealMaxY: { ...REVEAL_UNIFORMS.uRevealMaxY },
-      uRevealAffectAlpha: { ...REVEAL_UNIFORMS.uRevealAffectAlpha },
-      uRevealAffectSize: { ...REVEAL_UNIFORMS.uRevealAffectSize },
+      uRevealEnabled: { value: makeRevealUniformArrays(0) },
+      uRevealY: { value: makeRevealUniformArrays(0) },
+      uRevealBand: { value: makeRevealUniformArrays(0.12) },
+      uRevealMinY: { value: makeRevealUniformArrays(-1) },
+      uRevealMaxY: { value: makeRevealUniformArrays(1) },
+      uRevealAffectAlpha: { value: makeRevealUniformArrays(1) },
+      uRevealAffectSize: { value: makeRevealUniformArrays(1) },
     };
 
-    material.onBeforeCompile = (shader: ShaderLike) => {
-      shader.uniforms.uRevealEnabled = uniforms.uRevealEnabled;
-      shader.uniforms.uRevealY = uniforms.uRevealY;
-      shader.uniforms.uRevealBand = uniforms.uRevealBand;
-      shader.uniforms.uRevealMinY = uniforms.uRevealMinY;
-      shader.uniforms.uRevealMaxY = uniforms.uRevealMaxY;
-      shader.uniforms.uRevealAffectAlpha = uniforms.uRevealAffectAlpha;
-      shader.uniforms.uRevealAffectSize = uniforms.uRevealAffectSize;
+    material.uniforms.uRevealEnabled = uniforms.uRevealEnabled;
+    material.uniforms.uRevealY = uniforms.uRevealY;
+    material.uniforms.uRevealBand = uniforms.uRevealBand;
+    material.uniforms.uRevealMinY = uniforms.uRevealMinY;
+    material.uniforms.uRevealMaxY = uniforms.uRevealMaxY;
+    material.uniforms.uRevealAffectAlpha = uniforms.uRevealAffectAlpha;
+    material.uniforms.uRevealAffectSize = uniforms.uRevealAffectSize;
 
-      const vertexResult = injectRevealIntoVertexShader(shader.vertexShader);
-      const fragmentResult = injectRevealIntoFragmentShader(shader.fragmentShader);
-      shader.vertexShader = vertexResult.shader;
-      shader.fragmentShader = fragmentResult.shader;
-    };
-
+    material.vertexShader = injectRevealIntoVertexShader(material.vertexShader).shader;
+    material.fragmentShader = injectRevealIntoFragmentShader(material.fragmentShader).shader;
     material.needsUpdate = true;
 
-    const binding: RevealMaterialBinding = {
-      material,
-      uniforms,
-    };
-
+    const binding: RevealMaterialBinding = { material, uniforms };
     tagged[REVEAL_PATCH_FLAG] = true;
     tagged.__splatRevealBinding = binding;
     return binding;
@@ -405,49 +390,62 @@ export class GaussianSplatRenderer implements SplatRenderer {
 function injectRevealIntoVertexShader(source: string): { shader: string } {
   let shader = source;
   if (!shader.includes('varying float vRevealWorldY;')) {
-    shader = `varying float vRevealWorldY;\n${shader}`;
+    shader = `varying float vRevealWorldY;\nvarying float vRevealSceneIndex;\n${shader}`;
   }
 
-  if (shader.includes('#include <begin_vertex>')) {
+  if (shader.includes('uint sceneIndex = uint(0);')) {
     shader = shader.replace(
-      '#include <begin_vertex>',
-      '#include <begin_vertex>\n  vRevealWorldY = (modelMatrix * vec4(transformed, 1.0)).y;',
-    );
-  } else {
-    shader = shader.replace(
-      /void\s+main\s*\(\)\s*{/,
-      'void main() {\n  vec3 revealPosition = position;\n  vRevealWorldY = (modelMatrix * vec4(revealPosition, 1.0)).y;',
+      'uint sceneIndex = uint(0);',
+      'uint sceneIndex = uint(0);\n            vRevealSceneIndex = 0.0;',
     );
   }
+  if (shader.includes('sceneIndex = texture(sceneIndexesTexture, getDataUV(1, 0, sceneIndexesTextureSize)).r;')) {
+    shader = shader.replace(
+      'sceneIndex = texture(sceneIndexesTexture, getDataUV(1, 0, sceneIndexesTextureSize)).r;',
+      'sceneIndex = texture(sceneIndexesTexture, getDataUV(1, 0, sceneIndexesTextureSize)).r;\n                vRevealSceneIndex = float(sceneIndex);',
+    );
+  }
+  if (shader.includes('vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));')) {
+    shader = shader.replace(
+      'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));',
+      'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));\n            vRevealWorldY = (modelMatrix * vec4(splatCenter, 1.0)).y;',
+    );
+  }
+
   return { shader };
 }
 
 function injectRevealIntoFragmentShader(source: string): { shader: string } {
   let shader = source;
   if (!shader.includes('varying float vRevealWorldY;')) {
-    shader = `varying float vRevealWorldY;\n${shader}`;
+    shader = `varying float vRevealWorldY;\nvarying float vRevealSceneIndex;\n${shader}`;
   }
-  if (!shader.includes('uniform float uRevealEnabled;')) {
+  if (!shader.includes('uniform float uRevealEnabled[32];')) {
     shader =
-      `uniform float uRevealEnabled;\n` +
-      `uniform float uRevealY;\n` +
-      `uniform float uRevealBand;\n` +
-      `uniform float uRevealMinY;\n` +
-      `uniform float uRevealMaxY;\n` +
-      `uniform float uRevealAffectAlpha;\n` +
-      `uniform float uRevealAffectSize;\n` +
+      `uniform float uRevealEnabled[32];\n` +
+      `uniform float uRevealY[32];\n` +
+      `uniform float uRevealBand[32];\n` +
+      `uniform float uRevealMinY[32];\n` +
+      `uniform float uRevealMaxY[32];\n` +
+      `uniform float uRevealAffectAlpha[32];\n` +
+      `uniform float uRevealAffectSize[32];\n` +
       shader;
   }
 
   const revealSnippet =
-    '\n  float revealBand = max(0.0001, uRevealBand);\n' +
-    '  float revealRamp = smoothstep(uRevealY - revealBand, uRevealY + revealBand, vRevealWorldY);\n' +
-    '  if (uRevealEnabled > 0.5 && uRevealAffectAlpha > 0.5) {\n' +
+    '\n  int revealScene = int(vRevealSceneIndex + 0.5);\n' +
+    '  revealScene = clamp(revealScene, 0, 31);\n' +
+    '  float revealBand = max(0.0001, uRevealBand[revealScene]);\n' +
+    '  float revealRamp = smoothstep(uRevealY[revealScene] - revealBand, uRevealY[revealScene] + revealBand, vRevealWorldY);\n' +
+    '  if (uRevealEnabled[revealScene] > 0.5 && uRevealAffectAlpha[revealScene] > 0.5) {\n' +
     '    gl_FragColor.a *= revealRamp;\n' +
     '  }\n';
 
   if (shader.includes('#include <dithering_fragment>')) {
-    shader = shader.replace('#include <dithering_fragment>', `${revealSnippet}\n  #include <dithering_fragment>`);
+    shader = shader.replace(
+      '#include <dithering_fragment>',
+      `${revealSnippet}\n  #include <dithering_fragment>`,
+    );
   } else {
     shader = shader.replace(/\}\s*$/, `${revealSnippet}\n}`);
   }
