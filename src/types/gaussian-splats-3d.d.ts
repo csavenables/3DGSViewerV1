@@ -26,6 +26,7 @@ declare module '@mkkellogg/gaussian-splats-3d' {
     rootElement?: HTMLElement;
     renderMode?: number;
     sceneRevealMode?: number;
+    enableOptionalEffects?: boolean;
     sharedMemoryForWorkers?: boolean;
     gpuAcceleratedSort?: boolean;
     logLevel?: number;
@@ -36,6 +37,7 @@ declare module '@mkkellogg/gaussian-splats-3d' {
     position?: [number, number, number];
     rotation?: [number, number, number, number];
     scale?: [number, number, number];
+    opacity?: number;
     visible?: boolean;
     splatAlphaRemovalThreshold?: number;
   }
@@ -48,6 +50,7 @@ declare module '@mkkellogg/gaussian-splats-3d' {
 
   export interface SplatSceneHandle extends THREE.Object3D {
     visible: boolean;
+    opacity: number;
     position: THREE.Vector3;
     quaternion: THREE.Quaternion;
     scale: THREE.Vector3;

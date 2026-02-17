@@ -33,6 +33,10 @@ interface InternalViewer {
   };
 }
 
+interface RevealSceneObject extends THREE.Object3D {
+  opacity?: number;
+}
+
 function toQuaternionArray(rotationDegrees: [number, number, number]): [number, number, number, number] {
   const euler = new THREE.Euler(
     THREE.MathUtils.degToRad(rotationDegrees[0]),
@@ -196,6 +200,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
           position: asset.transform.position,
           rotation: toQuaternionArray(asset.transform.rotation),
           scale: asset.transform.scale,
+          opacity: 0,
           visible: asset.visibleDefault,
           splatAlphaRemovalThreshold: 1,
         });
@@ -212,6 +217,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
           position: asset.transform.position,
           rotation: toQuaternionArray(asset.transform.rotation),
           scale: asset.transform.scale,
+          opacity: 0,
           visible: asset.visibleDefault,
           splatAlphaRemovalThreshold: 1,
           showLoadingUI: false,
@@ -239,14 +245,16 @@ export class GaussianSplatRenderer implements SplatRenderer {
         }
       },
       setRevealParams: (params: SplatRevealParams): void => {
+        this.applySceneOpacityReveal(object3D, params, handle.boundsY);
         if (revealBinding) {
           revealBinding.uniforms.uRevealEnabled.value[sceneIndex] = params.enabled ? 1 : 0;
           revealBinding.uniforms.uRevealY.value[sceneIndex] = params.revealY;
           revealBinding.uniforms.uRevealBand.value[sceneIndex] = Math.max(0.0001, params.band);
           revealBinding.uniforms.uRevealAffectAlpha.value[sceneIndex] = params.affectAlpha ? 1 : 0;
           revealBinding.uniforms.uRevealAffectSize.value[sceneIndex] = params.affectSize ? 1 : 0;
-        } else {
-          this.applyFallbackAlphaReveal(object3D, params, handle.boundsY);
+        } else if (!this.warnedRevealFallback) {
+          console.warn('Y-ramp shader reveal unavailable. Using scene opacity dissolve fallback.');
+          this.warnedRevealFallback = true;
         }
         this.viewer?.forceRenderNextFrame();
       },
@@ -319,17 +327,18 @@ export class GaussianSplatRenderer implements SplatRenderer {
     return binding;
   }
 
-  private applyFallbackAlphaReveal(
+  private applySceneOpacityReveal(
     root: THREE.Object3D,
     params: SplatRevealParams,
     bounds: SplatRevealBounds,
   ): void {
-    if (!this.warnedRevealFallback) {
-      console.warn('Splat reveal shader injection unavailable. Falling back to global alpha fade.');
-      this.warnedRevealFallback = true;
-    }
     const range = Math.max(0.0001, bounds.maxY - bounds.minY);
     const revealProgress = Math.min(1, Math.max(0, (params.revealY - bounds.minY) / range));
+    const sceneRoot = root as RevealSceneObject;
+    if (typeof sceneRoot.opacity === 'number') {
+      sceneRoot.opacity = params.enabled && params.affectAlpha ? revealProgress : 1;
+      return;
+    }
 
     root.traverse((node) => {
       const withMaterial = node as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
@@ -360,6 +369,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
       rootElement: context.rootElement,
       renderMode: GaussianSplats3D.RenderMode.Always,
       sceneRevealMode: GaussianSplats3D.SceneRevealMode.Instant,
+      enableOptionalEffects: true,
       sharedMemoryForWorkers: false,
       gpuAcceleratedSort: false,
       logLevel: GaussianSplats3D.LogLevel.None,
