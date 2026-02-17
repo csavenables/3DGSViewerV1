@@ -127,19 +127,29 @@ export class GaussianSplatRenderer implements SplatRenderer {
         radius: this.fitData.radius,
       };
     }
-    if (this.handles.length === 0) {
+    if (!this.viewer || this.handles.length === 0) {
       return null;
     }
 
     const box = new THREE.Box3();
-    for (const handle of this.handles) {
-      const objectBox = new THREE.Box3().setFromObject(handle.object3D);
-      if (!objectBox.isEmpty()) {
-        box.union(objectBox);
+    const sample = new THREE.Vector3();
+    const transform = new THREE.Matrix4();
+    let sampledPoints = 0;
+
+    for (let sceneIndex = 0; sceneIndex < this.handles.length; sceneIndex += 1) {
+      const scene = this.viewer.getSplatScene(sceneIndex);
+      transform.compose(scene.position, scene.quaternion, scene.scale);
+      const count = scene.splatBuffer.getSplatCount();
+      const maxSamplesPerScene = 15000;
+      const step = Math.max(1, Math.floor(count / maxSamplesPerScene));
+      for (let splatIndex = 0; splatIndex < count; splatIndex += step) {
+        scene.splatBuffer.getSplatCenter(splatIndex, sample, transform);
+        box.expandByPoint(sample);
+        sampledPoints += 1;
       }
     }
 
-    if (box.isEmpty()) {
+    if (sampledPoints === 0 || box.isEmpty()) {
       return null;
     }
 
