@@ -55,11 +55,8 @@ function resolveAssetPath(path: string): string {
     return path;
   }
 
-  if (path.startsWith('/')) {
-    return `${import.meta.env.BASE_URL}${path.slice(1)}`;
-  }
-
-  return path;
+  const relativePath = path.startsWith('/') ? path.slice(1) : path;
+  return `${import.meta.env.BASE_URL}${relativePath}`;
 }
 
 function isExternalPath(path: string): boolean {
