@@ -32,6 +32,7 @@ export class SceneManager {
   private readonly handleById = new Map<string, SplatHandle>();
   private readonly loadingById = new Map<string, Promise<SplatHandle | null>>();
   private readonly revealController = new SplatRevealController();
+  private currentActiveId: string | null = null;
   private opVersion = 0;
 
   constructor(
@@ -77,6 +78,7 @@ export class SceneManager {
       this.loadingById.clear();
       this.activeAssets = config.assets;
       this.activeHandles = [];
+      this.currentActiveId = config.assets[0]?.id ?? null;
       this.activeItems = config.assets.map((asset, index) => ({
         id: asset.id,
         label: asset.id.replaceAll('_', ' '),
@@ -135,26 +137,28 @@ export class SceneManager {
     if (!targetHandle || !targetItem || targetItem.failed) {
       return false;
     }
-    if (targetItem.active) {
+    if (this.currentActiveId === id) {
       return true;
     }
 
     this.opVersion += 1;
     const localVersion = this.opVersion;
     const reveal = this.activeConfig.reveal;
+    const previousId = this.currentActiveId;
+    if (previousId && previousId !== id) {
+      const previousHandle = this.handleById.get(previousId);
+      if (previousHandle) {
+        await this.revealController.revealOut(previousHandle, previousHandle.boundsY, reveal);
+        if (localVersion !== this.opVersion) {
+          return false;
+        }
+      }
+    }
 
+    // Enforce exclusivity even if UI state drifted.
     for (const item of this.activeItems) {
-      if (!item.active || item.id === id) {
+      if (item.id === id) {
         continue;
-      }
-      const handle = this.handleById.get(item.id);
-      if (!handle) {
-        item.active = false;
-        continue;
-      }
-      await this.revealController.revealOut(handle, handle.boundsY, reveal);
-      if (localVersion !== this.opVersion) {
-        return false;
       }
       this.renderer.setVisible(item.id, false);
       item.active = false;
@@ -162,6 +166,7 @@ export class SceneManager {
 
     this.renderer.setVisible(id, true);
     targetItem.active = true;
+    this.currentActiveId = id;
     await this.prepareRevealStart([targetHandle], reveal);
     await this.revealController.revealIn(targetHandle, targetHandle.boundsY, reveal);
     if (localVersion !== this.opVersion) {
@@ -177,6 +182,7 @@ export class SceneManager {
     this.activeAssets = [];
     this.handleById.clear();
     this.loadingById.clear();
+    this.currentActiveId = null;
     await this.renderer.dispose();
   }
 
@@ -228,7 +234,7 @@ export class SceneManager {
         }
         this.handleById.set(id, handle);
         this.activeHandles.push(handle);
-        this.renderer.setVisible(id, false);
+        this.renderer.setVisible(id, id === this.currentActiveId);
         await this.prepareRevealStart([handle], this.activeConfig?.reveal ?? REVEAL_CONFIG_DEFAULTS);
         const item = this.activeItems.find((entry) => entry.id === id);
         if (item) {
