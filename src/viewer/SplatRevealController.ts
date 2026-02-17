@@ -28,7 +28,7 @@ export class SplatRevealController {
 
     const minY = boundsY.minY + config.startPadding;
     const maxY = boundsY.maxY + config.endPadding;
-    await this.animate(handle, minY, maxY, config);
+    await this.animate(handle, minY, maxY, config, 1);
   }
 
   async revealOut(
@@ -42,7 +42,7 @@ export class SplatRevealController {
 
     const minY = boundsY.minY + config.startPadding;
     const maxY = boundsY.maxY + config.endPadding;
-    await this.animate(handle, maxY, minY, config);
+    await this.animate(handle, maxY, minY, config, 0.5);
   }
 
   private async animate(
@@ -50,9 +50,10 @@ export class SplatRevealController {
     fromY: number,
     toY: number,
     config: RevealConfig,
+    durationScale: number,
   ): Promise<void> {
     const start = performance.now();
-    const duration = Math.max(100, config.durationMs);
+    const duration = Math.max(100, config.durationMs * durationScale);
 
     await new Promise<void>((resolve) => {
       const step = (now: number) => {
