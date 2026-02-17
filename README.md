@@ -9,6 +9,7 @@
 - Configurable camera home view, orbit/pan/zoom limits, and smooth reset transitions.
 - Multi-splat scene loading with supported formats: `.ply`, `.splat`, `.ksplat`, `.spz`.
 - Fade-out/fade-in scene transitions and basic loading UX.
+- Per-splat bottom-up reveal / downward dissolve driven by `scene.json` reveal config.
 - Scene switching via `public/scenes/manifest.json` (no code changes required to add scenes).
 - Minimal responsive toolbar for reset, fullscreen, and auto-rotate.
 - Friendly failures for invalid/unsupported scene assets.
@@ -46,6 +47,24 @@ npm run preview
 3. Update `public/scenes/<clientSceneId>/scene.json`.
 4. Add the new scene to `public/scenes/manifest.json`.
 5. Load with query param, e.g. `?scene=clientSceneId`.
+
+## Reveal Config (Optional)
+
+Add a `reveal` block in scene JSON to control bottom-up materialization:
+
+```json
+"reveal": {
+  "enabled": true,
+  "mode": "yRamp",
+  "durationMs": 450,
+  "band": 0.12,
+  "ease": "easeInOut",
+  "affectAlpha": true,
+  "affectSize": true,
+  "startPadding": 0,
+  "endPadding": 0
+}
+```
 
 ## Deployment
 

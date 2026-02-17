@@ -39,6 +39,21 @@ export interface TransitionConfig {
   fadeColour?: string;
 }
 
+export type RevealMode = 'yRamp';
+export type RevealEase = 'easeInOut' | 'linear';
+
+export interface RevealConfig {
+  enabled: boolean;
+  mode: RevealMode;
+  durationMs: number;
+  band: number;
+  ease: RevealEase;
+  affectAlpha: boolean;
+  affectSize: boolean;
+  startPadding: number;
+  endPadding: number;
+}
+
 export interface SceneConfig {
   id: string;
   title: string;
@@ -50,6 +65,7 @@ export interface SceneConfig {
   };
   ui: UiConfig;
   transitions: TransitionConfig;
+  reveal: RevealConfig;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -168,7 +184,12 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
   if (!isObject(transitionsValue)) {
     errors.push('"transitions" must be an object.');
   }
+  const revealValue = raw.reveal;
+  if (revealValue !== undefined && !isObject(revealValue)) {
+    errors.push('"reveal" must be an object when provided.');
+  }
   const transitionsObject = isObject(transitionsValue) ? transitionsValue : {};
+  const revealObject = isObject(revealValue) ? revealValue : {};
   const cameraHomeObject = isObject(cameraHomeValue) ? cameraHomeValue : {};
   const cameraLimitsObject = isObject(cameraLimitsValue) ? cameraLimitsValue : {};
 
@@ -206,6 +227,20 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
       fadeColour:
         typeof transitionsObject.fadeColour === 'string' ? transitionsObject.fadeColour : undefined,
     },
+    reveal: {
+      enabled: typeof revealObject.enabled === 'boolean' ? revealObject.enabled : false,
+      mode: revealObject.mode === 'yRamp' ? 'yRamp' : 'yRamp',
+      durationMs: isNumber(revealObject.durationMs) ? revealObject.durationMs : 450,
+      band: isNumber(revealObject.band) ? revealObject.band : 0.12,
+      ease:
+        revealObject.ease === 'linear' || revealObject.ease === 'easeInOut'
+          ? revealObject.ease
+          : 'easeInOut',
+      affectAlpha: typeof revealObject.affectAlpha === 'boolean' ? revealObject.affectAlpha : true,
+      affectSize: typeof revealObject.affectSize === 'boolean' ? revealObject.affectSize : true,
+      startPadding: isNumber(revealObject.startPadding) ? revealObject.startPadding : 0,
+      endPadding: isNumber(revealObject.endPadding) ? revealObject.endPadding : 0,
+    },
   };
 
   if (config.camera.limits.maxDistance < config.camera.limits.minDistance) {
@@ -214,6 +249,13 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
 
   if (config.camera.limits.maxPolarAngle < config.camera.limits.minPolarAngle) {
     errors.push('"camera.limits.maxPolarAngle" must be >= "camera.limits.minPolarAngle".');
+  }
+
+  if (config.reveal.durationMs <= 0) {
+    errors.push('"reveal.durationMs" must be > 0.');
+  }
+  if (config.reveal.band <= 0) {
+    errors.push('"reveal.band" must be > 0.');
   }
 
   if (errors.length > 0) {

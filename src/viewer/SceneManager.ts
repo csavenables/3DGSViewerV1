@@ -1,6 +1,7 @@
 import { loadSceneConfig } from '../config/loadSceneConfig';
-import { SceneConfig } from '../config/schema';
-import { SplatRenderer } from '../renderers/types';
+import { RevealConfig, SceneConfig } from '../config/schema';
+import { REVEAL_CONFIG_DEFAULTS, SplatHandle, SplatRenderer } from '../renderers/types';
+import { SplatRevealController } from './SplatRevealController';
 import { Transitions } from './Transitions';
 
 export interface SceneManagerEvents {
@@ -17,6 +18,8 @@ export class SceneLoadError extends Error {
 
 export class SceneManager {
   private activeConfig: SceneConfig | null = null;
+  private activeHandles: SplatHandle[] = [];
+  private readonly revealController = new SplatRevealController();
 
   constructor(
     private readonly renderer: SplatRenderer,
@@ -43,10 +46,26 @@ export class SceneManager {
     this.transitions.setColor(config.transitions.fadeColour ?? '#000000');
     await this.transitions.fadeOut(config.transitions.sceneFadeMs);
 
+    if (this.activeHandles.length > 0) {
+      this.events.onLoading('Dissolving current scene...');
+      const previousReveal = this.activeConfig?.reveal ?? REVEAL_CONFIG_DEFAULTS;
+      await Promise.all(
+        this.activeHandles.map((handle) =>
+          this.revealController.revealOut(handle, handle.boundsY, previousReveal),
+        ),
+      );
+    }
+
     this.events.onLoading('Loading splat assets...');
     try {
       await this.renderer.clear();
-      await this.renderer.loadSplats(config.assets);
+      const handles = await this.renderer.loadSplats(config.assets);
+      this.activeHandles = handles;
+
+      await this.prepareRevealStart(handles, config.reveal);
+      await Promise.all(
+        handles.map((handle) => this.revealController.revealIn(handle, handle.boundsY, config.reveal)),
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error while loading splat assets.';
       throw new SceneLoadError('Unable to load scene assets.', [message]);
@@ -59,6 +78,21 @@ export class SceneManager {
   }
 
   async dispose(): Promise<void> {
+    this.activeHandles = [];
     await this.renderer.dispose();
+  }
+
+  private async prepareRevealStart(handles: SplatHandle[], reveal: RevealConfig): Promise<void> {
+    for (const handle of handles) {
+      const minY = handle.boundsY.minY + reveal.startPadding;
+      handle.setRevealBounds(handle.boundsY);
+      handle.setRevealParams({
+        enabled: reveal.enabled,
+        revealY: minY,
+        band: reveal.band,
+        affectAlpha: reveal.affectAlpha,
+        affectSize: reveal.affectSize,
+      });
+    }
   }
 }

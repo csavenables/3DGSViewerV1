@@ -57,6 +57,17 @@
   "transitions": {
     "sceneFadeMs": 350,
     "fadeColour": "#000000"
+  },
+  "reveal": {
+    "enabled": true,
+    "mode": "yRamp",
+    "durationMs": 450,
+    "band": 0.12,
+    "ease": "easeInOut",
+    "affectAlpha": true,
+    "affectSize": true,
+    "startPadding": 0,
+    "endPadding": 0
   }
 }
 
