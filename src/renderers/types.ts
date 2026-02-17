@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RevealConfig, SplatAssetConfig } from '../config/schema';
+import { InteriorViewConfig, RevealConfig, SplatAssetConfig } from '../config/schema';
 
 export interface SplatFitData {
   center: THREE.Vector3;
@@ -53,6 +53,8 @@ export interface SplatRenderer {
   loadSplats(assets: SplatAssetConfig[]): Promise<SplatHandle[]>;
   loadSplat(asset: SplatAssetConfig): Promise<SplatHandle>;
   setVisible(id: string, visible: boolean): void;
+  setInteriorView(config: InteriorViewConfig): void;
+  setInteriorCameraPosition(position: THREE.Vector3): void;
   clear(): Promise<void>;
   getFitData(): SplatFitData | null;
   update(): void;

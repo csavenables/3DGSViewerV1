@@ -54,6 +54,16 @@ export interface RevealConfig {
   endPadding: number;
 }
 
+export interface InteriorViewConfig {
+  enabled: boolean;
+  target: Vec3;
+  radius: number;
+  softness: number;
+  fadeAlpha: number;
+  maxDistance: number;
+  affectSize: boolean;
+}
+
 export interface SceneConfig {
   id: string;
   title: string;
@@ -66,6 +76,7 @@ export interface SceneConfig {
   ui: UiConfig;
   transitions: TransitionConfig;
   reveal: RevealConfig;
+  interiorView: InteriorViewConfig;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -188,8 +199,13 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
   if (revealValue !== undefined && !isObject(revealValue)) {
     errors.push('"reveal" must be an object when provided.');
   }
+  const interiorValue = raw.interiorView;
+  if (interiorValue !== undefined && !isObject(interiorValue)) {
+    errors.push('"interiorView" must be an object when provided.');
+  }
   const transitionsObject = isObject(transitionsValue) ? transitionsValue : {};
   const revealObject = isObject(revealValue) ? revealValue : {};
+  const interiorObject = isObject(interiorValue) ? interiorValue : {};
   const cameraHomeObject = isObject(cameraHomeValue) ? cameraHomeValue : {};
   const cameraLimitsObject = isObject(cameraLimitsValue) ? cameraLimitsValue : {};
 
@@ -241,6 +257,15 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
       startPadding: isNumber(revealObject.startPadding) ? revealObject.startPadding : 0,
       endPadding: isNumber(revealObject.endPadding) ? revealObject.endPadding : 0,
     },
+    interiorView: {
+      enabled: typeof interiorObject.enabled === 'boolean' ? interiorObject.enabled : false,
+      target: isVec3(interiorObject.target) ? interiorObject.target : [0, 0, 0],
+      radius: isNumber(interiorObject.radius) ? interiorObject.radius : 0.45,
+      softness: isNumber(interiorObject.softness) ? interiorObject.softness : 0.2,
+      fadeAlpha: isNumber(interiorObject.fadeAlpha) ? interiorObject.fadeAlpha : 0.15,
+      maxDistance: isNumber(interiorObject.maxDistance) ? interiorObject.maxDistance : 20,
+      affectSize: typeof interiorObject.affectSize === 'boolean' ? interiorObject.affectSize : false,
+    },
   };
 
   if (config.camera.limits.maxDistance < config.camera.limits.minDistance) {
@@ -257,6 +282,16 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
   if (config.reveal.band <= 0) {
     errors.push('"reveal.band" must be > 0.');
   }
+
+  if (config.interiorView.radius <= 0) {
+    errors.push('"interiorView.radius" must be > 0.');
+  }
+  if (config.interiorView.maxDistance <= 0) {
+    errors.push('"interiorView.maxDistance" must be > 0.');
+  }
+
+  config.interiorView.softness = Math.min(0.6, Math.max(0.05, config.interiorView.softness));
+  config.interiorView.fadeAlpha = Math.min(1, Math.max(0, config.interiorView.fadeAlpha));
 
   if (errors.length > 0) {
     return { ok: false, errors };

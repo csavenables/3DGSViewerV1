@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SceneConfig } from '../config/schema';
+import { InteriorViewConfig, SceneConfig } from '../config/schema';
 import { GaussianSplatRenderer } from '../renderers/GaussianSplatRenderer';
 import { InputBindings } from './InputBindings';
 import { CameraController } from './CameraController';
@@ -10,6 +10,10 @@ export interface ViewerUi {
   setError(title: string, details: string[]): void;
   clearError(): void;
   configureToolbar(config: SceneConfig): void;
+  configureInteriorDebug(
+    config: InteriorViewConfig,
+    onChange: (patch: Partial<InteriorViewConfig>) => void,
+  ): void;
   setSceneTitle(title: string): void;
   setSplatOptions(items: SplatToggleItem[], onSelect: (id: string) => void): void;
   getOverlayElement(): HTMLElement;
@@ -99,6 +103,12 @@ export class Viewer {
       this.activeConfig = config;
       this.applySceneConfig(config);
       this.activeSceneId = sceneId;
+      const interior = this.sceneManager.getInteriorViewConfig();
+      if (interior) {
+        this.ui.configureInteriorDebug(interior, (patch) => {
+          this.sceneManager.updateInteriorViewConfig(patch);
+        });
+      }
       this.ui.setLoading(false);
       await this.sceneManager.revealActiveScene();
     } catch (error) {
@@ -241,6 +251,7 @@ export class Viewer {
   private onFrame = (): void => {
     const now = performance.now();
     this.cameraController.update(now);
+    this.splatRenderer.setInteriorCameraPosition(this.camera.position);
     this.splatRenderer.update();
     this.splatRenderer.render();
   };

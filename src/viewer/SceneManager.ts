@@ -1,5 +1,5 @@
 import { loadSceneConfig } from '../config/loadSceneConfig';
-import { RevealConfig, SceneConfig } from '../config/schema';
+import { InteriorViewConfig, RevealConfig, SceneConfig } from '../config/schema';
 import { REVEAL_CONFIG_DEFAULTS, SplatHandle, SplatRenderer } from '../renderers/types';
 import { SplatRevealController } from './SplatRevealController';
 
@@ -31,6 +31,7 @@ export class SceneManager {
   private readonly handleById = new Map<string, SplatHandle>();
   private readonly revealController = new SplatRevealController();
   private currentActiveId: string | null = null;
+  private interiorBaseConfig: SceneConfig['interiorView'] | null = null;
   private opVersion = 0;
 
   constructor(
@@ -72,9 +73,11 @@ export class SceneManager {
       if (loadVersion !== this.opVersion) {
         return this.activeConfig ?? config;
       }
+      this.interiorBaseConfig = config.interiorView;
       this.handleById.clear();
       this.activeHandles = await this.renderer.loadSplats(config.assets);
       this.currentActiveId = config.assets[0]?.id ?? null;
+      this.applyInteriorForActive(this.currentActiveId);
       this.activeItems = config.assets.map((asset, index) => ({
         id: asset.id,
         label: asset.id.replaceAll('_', ' '),
@@ -126,6 +129,29 @@ export class SceneManager {
     return this.activeItems.map((item) => ({ ...item }));
   }
 
+  getInteriorViewConfig(): InteriorViewConfig | null {
+    if (!this.interiorBaseConfig) {
+      return null;
+    }
+    return {
+      ...this.interiorBaseConfig,
+      target: [...this.interiorBaseConfig.target],
+    };
+  }
+
+  updateInteriorViewConfig(next: Partial<InteriorViewConfig>): void {
+    if (!this.interiorBaseConfig) {
+      return;
+    }
+    const merged: InteriorViewConfig = {
+      ...this.interiorBaseConfig,
+      ...next,
+      target: next.target ? [...next.target] : [...this.interiorBaseConfig.target],
+    };
+    this.interiorBaseConfig = merged;
+    this.applyInteriorForActive(this.currentActiveId);
+  }
+
   async activateSplat(id: string, onBeforeReveal?: () => void | Promise<void>): Promise<boolean> {
     if (!this.activeConfig) {
       return false;
@@ -165,6 +191,8 @@ export class SceneManager {
     this.renderer.setVisible(id, true);
     targetItem.active = true;
     this.currentActiveId = id;
+    this.events.onItemsChanged(this.getSplatItems());
+    this.applyInteriorForActive(this.currentActiveId);
     await this.prepareRevealStart([targetHandle], reveal);
     if (onBeforeReveal) {
       await onBeforeReveal();
@@ -182,6 +210,7 @@ export class SceneManager {
     this.activeItems = [];
     this.handleById.clear();
     this.currentActiveId = null;
+    this.interiorBaseConfig = null;
     await this.renderer.dispose();
   }
 
@@ -197,6 +226,17 @@ export class SceneManager {
         affectSize: reveal.affectSize,
       });
     }
+  }
+
+  private applyInteriorForActive(activeId: string | null): void {
+    const base = this.interiorBaseConfig;
+    if (!base) {
+      return;
+    }
+    this.renderer.setInteriorView({
+      ...base,
+      enabled: base.enabled && activeId === 'staircase',
+    });
   }
 
 }

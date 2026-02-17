@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
-import { SplatAssetConfig } from '../config/schema';
+import { InteriorViewConfig, SplatAssetConfig } from '../config/schema';
 import {
   RendererContext,
   SplatFitData,
@@ -14,6 +14,7 @@ const SUPPORTED_EXTENSIONS = ['.ply', '.splat', '.ksplat', '.spz'] as const;
 const MAX_REVEAL_SCENES = 32;
 const REVEAL_PATCH_FLAG = '__splatRevealPatched';
 const ENABLE_SHADER_REVEAL = false;
+const INTERIOR_PATCH_FLAG = '__splatInteriorPatched';
 
 interface RevealMaterialBinding {
   material: THREE.ShaderMaterial;
@@ -52,6 +53,30 @@ function makeRevealUniformArrays(defaultValue: number): number[] {
   return new Array(MAX_REVEAL_SCENES).fill(defaultValue);
 }
 
+interface InteriorMaterialBinding {
+  material: THREE.ShaderMaterial;
+  uniforms: {
+    uInteriorEnabled: { value: number };
+    uInteriorTarget: { value: THREE.Vector3 };
+    uInteriorRadius: { value: number };
+    uInteriorSoftness: { value: number };
+    uInteriorFadeAlpha: { value: number };
+    uInteriorMaxDist: { value: number };
+    uInteriorAffectSize: { value: number };
+    uInteriorCameraPos: { value: THREE.Vector3 };
+  };
+}
+
+const INTERIOR_DEFAULTS: InteriorViewConfig = {
+  enabled: false,
+  target: [0, 0, 0],
+  radius: 0.45,
+  softness: 0.2,
+  fadeAlpha: 0.15,
+  maxDistance: 20,
+  affectSize: false,
+};
+
 export class GaussianSplatRenderer implements SplatRenderer {
   private viewer: GaussianSplats3D.Viewer | null = null;
   private sceneIdOrder: string[] = [];
@@ -59,6 +84,9 @@ export class GaussianSplatRenderer implements SplatRenderer {
   private fitData: SplatFitData | null = null;
   private warnedRevealFallback = false;
   private revealBinding: RevealMaterialBinding | null = null;
+  private interiorBinding: InteriorMaterialBinding | null = null;
+  private interiorConfig: InteriorViewConfig = { ...INTERIOR_DEFAULTS };
+  private warnedInteriorFallback = false;
   private sceneGraphMutating = false;
   private sceneMutationQueue: Promise<void> = Promise.resolve();
 
@@ -116,6 +144,36 @@ export class GaussianSplatRenderer implements SplatRenderer {
     this.viewer?.forceRenderNextFrame();
   }
 
+  setInteriorView(config: InteriorViewConfig): void {
+    this.interiorConfig = {
+      enabled: config.enabled,
+      target: [...config.target],
+      radius: config.radius,
+      softness: config.softness,
+      fadeAlpha: config.fadeAlpha,
+      maxDistance: config.maxDistance,
+      affectSize: config.affectSize,
+    };
+    const binding = this.ensureInteriorPatch();
+    if (!binding) {
+      if (this.interiorConfig.enabled && !this.warnedInteriorFallback) {
+        console.warn('Interior view shader injection unavailable. Effect disabled.');
+        this.warnedInteriorFallback = true;
+      }
+      return;
+    }
+    this.applyInteriorConfig(binding, this.interiorConfig);
+    this.viewer?.forceRenderNextFrame();
+  }
+
+  setInteriorCameraPosition(position: THREE.Vector3): void {
+    const binding = this.ensureInteriorPatch();
+    if (!binding) {
+      return;
+    }
+    binding.uniforms.uInteriorCameraPos.value.copy(position);
+  }
+
   async clear(): Promise<void> {
     if (!this.viewer) {
       return;
@@ -131,6 +189,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
       this.handles.length = 0;
       this.fitData = null;
       this.revealBinding = null;
+      this.interiorBinding = null;
       this.viewer!.forceRenderNextFrame();
     });
   }
@@ -208,6 +267,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
     this.sceneIdOrder = [];
     this.fitData = null;
     this.revealBinding = null;
+    this.interiorBinding = null;
   }
 
   private async withSceneMutation<T>(work: () => Promise<T>): Promise<T> {
@@ -333,6 +393,23 @@ export class GaussianSplatRenderer implements SplatRenderer {
     return this.revealBinding;
   }
 
+  private ensureInteriorPatch(): InteriorMaterialBinding | null {
+    if (this.interiorBinding) {
+      return this.interiorBinding;
+    }
+    const anyViewer = this.viewer as unknown as InternalViewer | null;
+    const material = anyViewer?.splatMesh?.material;
+    if (!material) {
+      return null;
+    }
+    if (!('uniforms' in material) || typeof material.uniforms !== 'object' || material.uniforms === null) {
+      return null;
+    }
+    this.interiorBinding = this.patchInteriorMaterial(material);
+    this.applyInteriorConfig(this.interiorBinding, this.interiorConfig);
+    return this.interiorBinding;
+  }
+
   private patchRevealMaterial(material: THREE.ShaderMaterial): RevealMaterialBinding {
     const tagged = material as unknown as Record<string, unknown>;
     if (tagged[REVEAL_PATCH_FLAG] === true) {
@@ -368,6 +445,58 @@ export class GaussianSplatRenderer implements SplatRenderer {
     tagged[REVEAL_PATCH_FLAG] = true;
     tagged.__splatRevealBinding = binding;
     return binding;
+  }
+
+  private patchInteriorMaterial(material: THREE.ShaderMaterial): InteriorMaterialBinding {
+    if (!material.uniforms) {
+      material.uniforms = {};
+    }
+    const tagged = material as unknown as Record<string, unknown>;
+    if (tagged[INTERIOR_PATCH_FLAG] === true) {
+      const existing = tagged.__splatInteriorBinding as InteriorMaterialBinding | undefined;
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const uniforms = {
+      uInteriorEnabled: { value: 0 },
+      uInteriorTarget: { value: new THREE.Vector3(0, 0, 0) },
+      uInteriorRadius: { value: 0.45 },
+      uInteriorSoftness: { value: 0.2 },
+      uInteriorFadeAlpha: { value: 0.15 },
+      uInteriorMaxDist: { value: 20 },
+      uInteriorAffectSize: { value: 0 },
+      uInteriorCameraPos: { value: new THREE.Vector3(0, 0, 0) },
+    };
+
+    material.uniforms.uInteriorEnabled = uniforms.uInteriorEnabled;
+    material.uniforms.uInteriorTarget = uniforms.uInteriorTarget;
+    material.uniforms.uInteriorRadius = uniforms.uInteriorRadius;
+    material.uniforms.uInteriorSoftness = uniforms.uInteriorSoftness;
+    material.uniforms.uInteriorFadeAlpha = uniforms.uInteriorFadeAlpha;
+    material.uniforms.uInteriorMaxDist = uniforms.uInteriorMaxDist;
+    material.uniforms.uInteriorAffectSize = uniforms.uInteriorAffectSize;
+    material.uniforms.uInteriorCameraPos = uniforms.uInteriorCameraPos;
+
+    material.vertexShader = injectInteriorIntoVertexShader(material.vertexShader).shader;
+    material.fragmentShader = injectInteriorIntoFragmentShader(material.fragmentShader).shader;
+    material.needsUpdate = true;
+
+    const binding: InteriorMaterialBinding = { material, uniforms };
+    tagged[INTERIOR_PATCH_FLAG] = true;
+    tagged.__splatInteriorBinding = binding;
+    return binding;
+  }
+
+  private applyInteriorConfig(binding: InteriorMaterialBinding, config: InteriorViewConfig): void {
+    binding.uniforms.uInteriorEnabled.value = config.enabled ? 1 : 0;
+    binding.uniforms.uInteriorTarget.value.set(...config.target);
+    binding.uniforms.uInteriorRadius.value = Math.max(0.0001, config.radius);
+    binding.uniforms.uInteriorSoftness.value = Math.min(0.6, Math.max(0.05, config.softness));
+    binding.uniforms.uInteriorFadeAlpha.value = Math.min(1, Math.max(0, config.fadeAlpha));
+    binding.uniforms.uInteriorMaxDist.value = Math.max(0.0001, config.maxDistance);
+    binding.uniforms.uInteriorAffectSize.value = config.affectSize ? 1 : 0;
   }
 
   private applySceneOpacityReveal(
@@ -468,6 +597,35 @@ function injectRevealIntoVertexShader(source: string): { shader: string } {
   return { shader };
 }
 
+function injectInteriorIntoVertexShader(source: string): { shader: string } {
+  let shader = source;
+  if (!shader.includes('varying vec3 vInteriorSplatPos;')) {
+    shader = `varying vec3 vInteriorSplatPos;\n${shader}`;
+  }
+  if (!shader.includes('varying float vInteriorSceneIndex;')) {
+    shader = `varying float vInteriorSceneIndex;\n${shader}`;
+  }
+  if (shader.includes('uint sceneIndex = uint(0);')) {
+    shader = shader.replace(
+      'uint sceneIndex = uint(0);',
+      'uint sceneIndex = uint(0);\n            vInteriorSceneIndex = 0.0;',
+    );
+  }
+  if (shader.includes('sceneIndex = texture(sceneIndexesTexture, getDataUV(1, 0, sceneIndexesTextureSize)).r;')) {
+    shader = shader.replace(
+      'sceneIndex = texture(sceneIndexesTexture, getDataUV(1, 0, sceneIndexesTextureSize)).r;',
+      'sceneIndex = texture(sceneIndexesTexture, getDataUV(1, 0, sceneIndexesTextureSize)).r;\n                vInteriorSceneIndex = float(sceneIndex);',
+    );
+  }
+  if (shader.includes('vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));')) {
+    shader = shader.replace(
+      'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));',
+      'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));\n            vInteriorSplatPos = splatCenter;',
+    );
+  }
+  return { shader };
+}
+
 function injectRevealIntoFragmentShader(source: string): { shader: string } {
   let shader = source;
   if (!shader.includes('varying float vRevealWorldY;')) {
@@ -501,6 +659,59 @@ function injectRevealIntoFragmentShader(source: string): { shader: string } {
     );
   } else {
     shader = shader.replace(/\}\s*$/, `${revealSnippet}\n}`);
+  }
+
+  return { shader };
+}
+
+function injectInteriorIntoFragmentShader(source: string): { shader: string } {
+  let shader = source;
+  if (!shader.includes('varying vec3 vInteriorSplatPos;')) {
+    shader = `varying vec3 vInteriorSplatPos;\n${shader}`;
+  }
+  if (!shader.includes('varying float vInteriorSceneIndex;')) {
+    shader = `varying float vInteriorSceneIndex;\n${shader}`;
+  }
+  if (!shader.includes('uniform float uInteriorEnabled;')) {
+    shader =
+      `uniform float uInteriorEnabled;\n` +
+      `uniform vec3 uInteriorTarget;\n` +
+      `uniform float uInteriorRadius;\n` +
+      `uniform float uInteriorSoftness;\n` +
+      `uniform float uInteriorFadeAlpha;\n` +
+      `uniform float uInteriorMaxDist;\n` +
+      `uniform float uInteriorAffectSize;\n` +
+      `uniform vec3 uInteriorCameraPos;\n` +
+      shader;
+  }
+
+  const snippet =
+    '\n  if (uInteriorEnabled > 0.5) {\n' +
+    '    vec3 A = uInteriorCameraPos;\n' +
+    '    vec3 B = uInteriorTarget;\n' +
+    '    vec3 AB = B - A;\n' +
+    '    float abLen = length(AB);\n' +
+    '    if (abLen > 0.0001 && abLen <= uInteriorMaxDist) {\n' +
+    '      float abLenSq = dot(AB, AB);\n' +
+    '      vec3 AP = vInteriorSplatPos - A;\n' +
+    '      float t = clamp(dot(AP, AB) / abLenSq, 0.0, 1.0);\n' +
+    '      if (t > 0.0 && t < 1.0) {\n' +
+    '        vec3 closest = A + t * AB;\n' +
+    '        float d = length(vInteriorSplatPos - closest);\n' +
+    '        float soft = max(0.0001, uInteriorSoftness * uInteriorRadius);\n' +
+    '        float m = smoothstep(uInteriorRadius, uInteriorRadius - soft, d);\n' +
+    '        gl_FragColor.a = mix(gl_FragColor.a, gl_FragColor.a * uInteriorFadeAlpha, m);\n' +
+    '        if (uInteriorAffectSize > 0.5) {\n' +
+    '          gl_FragColor.a *= mix(1.0, 0.7, m);\n' +
+    '        }\n' +
+    '      }\n' +
+    '    }\n' +
+    '  }\n';
+
+  if (shader.includes('#include <dithering_fragment>')) {
+    shader = shader.replace('#include <dithering_fragment>', `${snippet}\n  #include <dithering_fragment>`);
+  } else {
+    shader = shader.replace(/\}\s*$/, `${snippet}\n}`);
   }
 
   return { shader };

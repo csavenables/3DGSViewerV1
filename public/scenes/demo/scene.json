@@ -31,6 +31,16 @@
         "scale": [1, 1, 1]
       },
       "visibleDefault": false
+    },
+    {
+      "id": "staircase",
+      "src": "scenes/demo/splats/Grand_staircase_black_Hod.compressed.ply",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [180, 0, 0],
+        "scale": [1, 1, 1]
+      },
+      "visibleDefault": false
     }
   ],
   "camera": {
@@ -68,6 +78,15 @@
     "affectSize": true,
     "startPadding": 0,
     "endPadding": 0
+  },
+  "interiorView": {
+    "enabled": true,
+    "target": [-0.6, 1.9, 0],
+    "radius": 18,
+    "softness": 0.6,
+    "fadeAlpha": 0.16,
+    "maxDistance": 18,
+    "affectSize": false
   }
 }
 
