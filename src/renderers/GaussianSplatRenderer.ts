@@ -13,6 +13,7 @@ import {
 const SUPPORTED_EXTENSIONS = ['.ply', '.splat', '.ksplat', '.spz'] as const;
 const MAX_REVEAL_SCENES = 32;
 const REVEAL_PATCH_FLAG = '__splatRevealPatched';
+const ENABLE_SHADER_REVEAL = false;
 
 interface RevealMaterialBinding {
   material: THREE.ShaderMaterial;
@@ -313,6 +314,9 @@ export class GaussianSplatRenderer implements SplatRenderer {
   }
 
   private ensureRevealPatch(): RevealMaterialBinding | null {
+    if (!ENABLE_SHADER_REVEAL) {
+      return null;
+    }
     if (this.revealBinding) {
       return this.revealBinding;
     }

@@ -12,8 +12,6 @@ export interface ViewerUi {
   configureToolbar(config: SceneConfig): void;
   setSceneTitle(title: string): void;
   setSplatOptions(items: SplatToggleItem[], onSelect: (id: string) => void): void;
-  setSplatBusy(id: string, busy: boolean): void;
-  setSplatBusyAll(busy: boolean): void;
   getOverlayElement(): HTMLElement;
   getCanvasHostElement(): HTMLElement;
 }
@@ -34,6 +32,8 @@ export class Viewer {
   private autoRotate = false;
   private disposed = false;
   private pendingResizeSync = false;
+  private queuedSelectionId: string | null = null;
+  private processingSelection = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -56,7 +56,7 @@ export class Viewer {
       },
       onItemsChanged: (items) => {
         this.ui.setSplatOptions(items, (id) => {
-          void this.selectSplat(id);
+          this.enqueueSplatSelection(id);
         });
       },
     });
@@ -175,19 +175,30 @@ export class Viewer {
     this.cameraController.setAutoRotate(this.autoRotate);
   }
 
-  private async selectSplat(id: string): Promise<void> {
-    this.ui.setSplatBusyAll(true);
-    try {
-      await this.sceneManager.activateSplat(id, () => {
-        if (this.activeConfig) {
-          this.fitCameraToContent(this.activeConfig);
-        }
-      });
-    } catch {
-      // no-op: SceneManager emits authoritative item state
-    } finally {
-      this.ui.setSplatBusyAll(false);
+  private enqueueSplatSelection(id: string): void {
+    this.queuedSelectionId = id;
+    if (this.processingSelection) {
+      return;
     }
+    this.processingSelection = true;
+    void this.processQueuedSelections();
+  }
+
+  private async processQueuedSelections(): Promise<void> {
+    while (this.queuedSelectionId) {
+      const targetId = this.queuedSelectionId;
+      this.queuedSelectionId = null;
+      try {
+        await this.sceneManager.activateSplat(targetId, () => {
+          if (this.activeConfig) {
+            this.fitCameraToContent(this.activeConfig);
+          }
+        });
+      } catch {
+        // no-op: SceneManager emits authoritative item state
+      }
+    }
+    this.processingSelection = false;
   }
 
   private fitCameraToContent(config: SceneConfig): void {
