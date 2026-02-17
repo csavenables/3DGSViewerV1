@@ -13,31 +13,11 @@
       "visibleDefault": true
     },
     {
-      "id": "part_detail_01",
-      "src": "scenes/demo/splats/part_detail_01.ply",
-      "transform": {
-        "position": [0.2, 0.1, 0],
-        "rotation": [0, 25, 0],
-        "scale": [0.8, 0.8, 0.8]
-      },
-      "visibleDefault": true
-    },
-    {
-      "id": "part_detail_02",
-      "src": "scenes/demo/splats/part_detail_02.ply",
-      "transform": {
-        "position": [-0.2, -0.1, 0],
-        "rotation": [0, -15, 0],
-        "scale": [0.7, 0.7, 0.7]
-      },
-      "visibleDefault": true
-    },
-    {
       "id": "flowers",
       "src": "scenes/demo/splats/gs_Flowers_Luma_detail_pass.compressed2.ply",
       "transform": {
         "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
+        "rotation": [180, 0, 0],
         "scale": [1, 1, 1]
       },
       "visibleDefault": false
@@ -47,7 +27,7 @@
       "src": "scenes/demo/splats/gs_Church_Arch.compressed.ply",
       "transform": {
         "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
+        "rotation": [180, 0, 0],
         "scale": [1, 1, 1]
       },
       "visibleDefault": false

@@ -6,7 +6,7 @@ import { SplatRevealController } from './SplatRevealController';
 export interface SplatToggleItem {
   id: string;
   label: string;
-  visible: boolean;
+  active: boolean;
   loaded: boolean;
   failed: boolean;
 }
@@ -80,7 +80,7 @@ export class SceneManager {
       this.activeItems = config.assets.map((asset, index) => ({
         id: asset.id,
         label: asset.id.replaceAll('_', ' '),
-        visible: index === 0,
+        active: index === 0,
         loaded: false,
         failed: false,
       }));
@@ -112,7 +112,7 @@ export class SceneManager {
     await Promise.all(
       this.activeHandles.map(async (handle) => {
         const item = this.activeItems.find((entry) => entry.id === handle.id);
-        if (!item?.visible) {
+        if (!item?.active) {
           this.renderer.setVisible(handle.id, false);
           return;
         }
@@ -126,37 +126,49 @@ export class SceneManager {
     return this.activeItems.map((item) => ({ ...item }));
   }
 
-  async setSplatVisible(id: string, visible: boolean): Promise<boolean> {
+  async activateSplat(id: string): Promise<boolean> {
     if (!this.activeConfig) {
       return false;
     }
-    const handle = this.handleById.get(id) ?? (await this.ensureHandleLoaded(id, this.opVersion));
-    const item = this.activeItems.find((entry) => entry.id === id);
-    if (!handle || !item) {
+    const targetHandle = this.handleById.get(id) ?? (await this.ensureHandleLoaded(id, this.opVersion));
+    const targetItem = this.activeItems.find((entry) => entry.id === id);
+    if (!targetHandle || !targetItem || targetItem.failed) {
       return false;
     }
-    if (item.visible === visible) {
-      return visible;
+    if (targetItem.active) {
+      return true;
     }
 
     this.opVersion += 1;
     const localVersion = this.opVersion;
+    const reveal = this.activeConfig.reveal;
 
-    if (visible) {
-      item.visible = true;
-      this.renderer.setVisible(id, true);
-      await this.prepareRevealStart([handle], this.activeConfig.reveal);
-      await this.revealController.revealIn(handle, handle.boundsY, this.activeConfig.reveal);
-      return true;
+    for (const item of this.activeItems) {
+      if (!item.active || item.id === id) {
+        continue;
+      }
+      const handle = this.handleById.get(item.id);
+      if (!handle) {
+        item.active = false;
+        continue;
+      }
+      await this.revealController.revealOut(handle, handle.boundsY, reveal);
+      if (localVersion !== this.opVersion) {
+        return false;
+      }
+      this.renderer.setVisible(item.id, false);
+      item.active = false;
     }
 
-    await this.revealController.revealOut(handle, handle.boundsY, this.activeConfig.reveal);
+    this.renderer.setVisible(id, true);
+    targetItem.active = true;
+    await this.prepareRevealStart([targetHandle], reveal);
+    await this.revealController.revealIn(targetHandle, targetHandle.boundsY, reveal);
     if (localVersion !== this.opVersion) {
-      return item.visible;
+      return false;
     }
-    this.renderer.setVisible(id, false);
-    item.visible = false;
-    return false;
+    this.events.onItemsChanged(this.getSplatItems());
+    return true;
   }
 
   async dispose(): Promise<void> {

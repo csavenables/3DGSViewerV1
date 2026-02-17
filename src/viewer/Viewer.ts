@@ -11,9 +11,9 @@ export interface ViewerUi {
   clearError(): void;
   configureToolbar(config: SceneConfig): void;
   setSceneTitle(title: string): void;
-  setSplatOptions(items: SplatToggleItem[], onToggle: (id: string, nextVisible: boolean) => void): void;
+  setSplatOptions(items: SplatToggleItem[], onSelect: (id: string) => void): void;
   setSplatBusy(id: string, busy: boolean): void;
-  setSplatVisible(id: string, visible: boolean): void;
+  setSplatActive(id: string, active: boolean): void;
   getOverlayElement(): HTMLElement;
   getCanvasHostElement(): HTMLElement;
 }
@@ -55,8 +55,8 @@ export class Viewer {
         this.ui.setSceneTitle(config.title);
       },
       onItemsChanged: (items) => {
-        this.ui.setSplatOptions(items, (id, nextVisible) => {
-          void this.toggleSplatVisibility(id, nextVisible);
+        this.ui.setSplatOptions(items, (id) => {
+          void this.selectSplat(id);
         });
       },
     });
@@ -175,16 +175,16 @@ export class Viewer {
     this.cameraController.setAutoRotate(this.autoRotate);
   }
 
-  private async toggleSplatVisibility(id: string, nextVisible: boolean): Promise<void> {
+  private async selectSplat(id: string): Promise<void> {
     this.ui.setSplatBusy(id, true);
     try {
-      const finalVisible = await this.sceneManager.setSplatVisible(id, nextVisible);
-      this.ui.setSplatVisible(id, finalVisible);
+      const active = await this.sceneManager.activateSplat(id);
+      this.ui.setSplatActive(id, active);
       if (this.activeConfig) {
         this.fitCameraToContent(this.activeConfig);
       }
     } catch {
-      this.ui.setSplatVisible(id, !nextVisible);
+      this.ui.setSplatActive(id, false);
     } finally {
       this.ui.setSplatBusy(id, false);
     }

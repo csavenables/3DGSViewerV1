@@ -143,6 +143,9 @@ export class GaussianSplatRenderer implements SplatRenderer {
 
     for (let sceneIndex = 0; sceneIndex < this.handles.length; sceneIndex += 1) {
       const scene = this.viewer.getSplatScene(sceneIndex);
+      if (!scene.visible) {
+        continue;
+      }
       transform.compose(scene.position, scene.quaternion, scene.scale);
       const count = scene.splatBuffer.getSplatCount();
       const maxSamplesPerScene = 15000;

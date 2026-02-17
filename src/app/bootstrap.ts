@@ -90,7 +90,7 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
     },
     setSplatOptions(
       items: SplatToggleItem[],
-      onToggle: (id: string, nextVisible: boolean) => void,
+      onSelect: (id: string) => void,
     ): void {
       splatControls.innerHTML = '';
       for (const item of items) {
@@ -98,18 +98,17 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
         button.type = 'button';
         button.className = 'splat-toggle';
         button.dataset.splatId = item.id;
-        button.dataset.visible = item.visible ? 'true' : 'false';
+        button.dataset.active = item.active ? 'true' : 'false';
         button.dataset.loaded = item.loaded ? 'true' : 'false';
         button.textContent = item.label;
-        button.classList.toggle('active', item.visible);
+        button.classList.toggle('active', item.active);
         button.classList.toggle('failed', item.failed);
         button.disabled = !item.loaded || item.failed;
         button.onclick = () => {
           if (button.disabled) {
             return;
           }
-          const currentVisible = button.dataset.visible === 'true';
-          onToggle(item.id, !currentVisible);
+          onSelect(item.id);
         };
         splatControls.appendChild(button);
       }
@@ -122,13 +121,13 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
       button.disabled = busy;
       button.classList.toggle('busy', busy);
     },
-    setSplatVisible(id: string, visible: boolean): void {
+    setSplatActive(id: string, active: boolean): void {
       const button = splatControls.querySelector<HTMLButtonElement>(`button[data-splat-id="${id}"]`);
       if (!button) {
         return;
       }
-      button.dataset.visible = visible ? 'true' : 'false';
-      button.classList.toggle('active', visible);
+      button.dataset.active = active ? 'true' : 'false';
+      button.classList.toggle('active', active);
     },
     getOverlayElement(): HTMLElement {
       return overlay;
