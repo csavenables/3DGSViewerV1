@@ -115,6 +115,15 @@ body,
   opacity: 0.7;
 }
 
+.splat-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.splat-toggle.failed {
+  border-color: rgb(208 69 91 / 65%);
+}
+
 .transition-overlay {
   position: absolute;
   inset: 0;

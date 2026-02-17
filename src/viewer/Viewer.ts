@@ -54,6 +54,11 @@ export class Viewer {
         this.ui.configureToolbar(config);
         this.ui.setSceneTitle(config.title);
       },
+      onItemsChanged: (items) => {
+        this.ui.setSplatOptions(items, (id, nextVisible) => {
+          void this.toggleSplatVisibility(id, nextVisible);
+        });
+      },
     });
 
     this.inputBindings = new InputBindings({
@@ -95,9 +100,6 @@ export class Viewer {
       this.applySceneConfig(config);
       this.activeSceneId = sceneId;
       this.ui.setLoading(false);
-      this.ui.setSplatOptions(this.sceneManager.getSplatItems(), (id, nextVisible) => {
-        void this.toggleSplatVisibility(id, nextVisible);
-      });
       await this.sceneManager.revealActiveScene();
     } catch (error) {
       this.ui.setLoading(false);

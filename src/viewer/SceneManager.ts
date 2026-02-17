@@ -1,5 +1,5 @@
 import { loadSceneConfig } from '../config/loadSceneConfig';
-import { RevealConfig, SceneConfig } from '../config/schema';
+import { RevealConfig, SceneConfig, SplatAssetConfig } from '../config/schema';
 import { REVEAL_CONFIG_DEFAULTS, SplatHandle, SplatRenderer } from '../renderers/types';
 import { SplatRevealController } from './SplatRevealController';
 
@@ -7,11 +7,14 @@ export interface SplatToggleItem {
   id: string;
   label: string;
   visible: boolean;
+  loaded: boolean;
+  failed: boolean;
 }
 
 export interface SceneManagerEvents {
   onLoading(message: string): void;
   onReady(config: SceneConfig): void;
+  onItemsChanged(items: SplatToggleItem[]): void;
 }
 
 export class SceneLoadError extends Error {
@@ -25,6 +28,9 @@ export class SceneManager {
   private activeConfig: SceneConfig | null = null;
   private activeHandles: SplatHandle[] = [];
   private activeItems: SplatToggleItem[] = [];
+  private activeAssets: SplatAssetConfig[] = [];
+  private readonly handleById = new Map<string, SplatHandle>();
+  private readonly loadingById = new Map<string, Promise<SplatHandle | null>>();
   private readonly revealController = new SplatRevealController();
   private opVersion = 0;
 
@@ -67,18 +73,27 @@ export class SceneManager {
       if (loadVersion !== this.opVersion) {
         return this.activeConfig ?? config;
       }
-      const handles = await this.renderer.loadSplats(config.assets);
-      if (loadVersion !== this.opVersion) {
-        return this.activeConfig ?? config;
-      }
-      this.activeHandles = handles;
-      this.activeItems = config.assets.map((asset) => ({
+      this.handleById.clear();
+      this.loadingById.clear();
+      this.activeAssets = config.assets;
+      this.activeHandles = [];
+      this.activeItems = config.assets.map((asset, index) => ({
         id: asset.id,
         label: asset.id.replaceAll('_', ' '),
-        visible: asset.visibleDefault,
+        visible: index === 0,
+        loaded: false,
+        failed: false,
       }));
+      this.events.onItemsChanged(this.getSplatItems());
 
-      await this.prepareRevealStart(handles, config.reveal);
+      const firstAsset = config.assets[0];
+      if (firstAsset) {
+        const firstHandle = await this.ensureHandleLoaded(firstAsset.id, loadVersion);
+        if (firstHandle) {
+          this.renderer.setVisible(firstAsset.id, true);
+          await this.prepareRevealStart([firstHandle], config.reveal);
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error while loading splat assets.';
       throw new SceneLoadError('Unable to load scene assets.', [message]);
@@ -86,6 +101,7 @@ export class SceneManager {
 
     this.activeConfig = config;
     this.events.onReady(config);
+    void this.preloadRemainingAssets(loadVersion);
     return config;
   }
 
@@ -114,7 +130,7 @@ export class SceneManager {
     if (!this.activeConfig) {
       return false;
     }
-    const handle = this.activeHandles.find((entry) => entry.id === id);
+    const handle = this.handleById.get(id) ?? (await this.ensureHandleLoaded(id, this.opVersion));
     const item = this.activeItems.find((entry) => entry.id === id);
     if (!handle || !item) {
       return false;
@@ -146,6 +162,9 @@ export class SceneManager {
   async dispose(): Promise<void> {
     this.activeHandles = [];
     this.activeItems = [];
+    this.activeAssets = [];
+    this.handleById.clear();
+    this.loadingById.clear();
     await this.renderer.dispose();
   }
 
@@ -161,5 +180,65 @@ export class SceneManager {
         affectSize: reveal.affectSize,
       });
     }
+  }
+
+  private async preloadRemainingAssets(version: number): Promise<void> {
+    for (let i = 1; i < this.activeAssets.length; i += 1) {
+      if (version !== this.opVersion) {
+        return;
+      }
+      const asset = this.activeAssets[i];
+      await this.ensureHandleLoaded(asset.id, version);
+    }
+  }
+
+  private async ensureHandleLoaded(id: string, version: number): Promise<SplatHandle | null> {
+    const existing = this.handleById.get(id);
+    if (existing) {
+      return existing;
+    }
+
+    const inFlight = this.loadingById.get(id);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const asset = this.activeAssets.find((entry) => entry.id === id);
+    if (!asset) {
+      return null;
+    }
+
+    const loadPromise = (async (): Promise<SplatHandle | null> => {
+      try {
+        const handle = await this.renderer.loadSplat(asset);
+        if (version !== this.opVersion) {
+          return null;
+        }
+        this.handleById.set(id, handle);
+        this.activeHandles.push(handle);
+        this.renderer.setVisible(id, false);
+        await this.prepareRevealStart([handle], this.activeConfig?.reveal ?? REVEAL_CONFIG_DEFAULTS);
+        const item = this.activeItems.find((entry) => entry.id === id);
+        if (item) {
+          item.loaded = true;
+          item.failed = false;
+          this.events.onItemsChanged(this.getSplatItems());
+        }
+        return handle;
+      } catch {
+        const item = this.activeItems.find((entry) => entry.id === id);
+        if (item) {
+          item.loaded = false;
+          item.failed = true;
+          this.events.onItemsChanged(this.getSplatItems());
+        }
+        return null;
+      } finally {
+        this.loadingById.delete(id);
+      }
+    })();
+
+    this.loadingById.set(id, loadPromise);
+    return loadPromise;
   }
 }

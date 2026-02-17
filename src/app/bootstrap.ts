@@ -99,9 +99,15 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
         button.className = 'splat-toggle';
         button.dataset.splatId = item.id;
         button.dataset.visible = item.visible ? 'true' : 'false';
+        button.dataset.loaded = item.loaded ? 'true' : 'false';
         button.textContent = item.label;
         button.classList.toggle('active', item.visible);
+        button.classList.toggle('failed', item.failed);
+        button.disabled = !item.loaded || item.failed;
         button.onclick = () => {
+          if (button.disabled) {
+            return;
+          }
           const currentVisible = button.dataset.visible === 'true';
           onToggle(item.id, !currentVisible);
         };
