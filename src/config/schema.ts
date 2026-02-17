@@ -230,7 +230,7 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
     reveal: {
       enabled: typeof revealObject.enabled === 'boolean' ? revealObject.enabled : true,
       mode: revealObject.mode === 'yRamp' ? 'yRamp' : 'yRamp',
-      durationMs: isNumber(revealObject.durationMs) ? revealObject.durationMs : 1400,
+      durationMs: isNumber(revealObject.durationMs) ? revealObject.durationMs : 2800,
       band: isNumber(revealObject.band) ? revealObject.band : 0.12,
       ease:
         revealObject.ease === 'linear' || revealObject.ease === 'easeInOut'

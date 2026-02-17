@@ -32,7 +32,7 @@ export interface SplatHandle {
 export const REVEAL_CONFIG_DEFAULTS: RevealConfig = {
   enabled: true,
   mode: 'yRamp',
-  durationMs: 1400,
+  durationMs: 2800,
   band: 0.12,
   ease: 'easeInOut',
   affectAlpha: true,

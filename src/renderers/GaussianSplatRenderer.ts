@@ -418,7 +418,7 @@ function injectRevealIntoVertexShader(source: string): { shader: string } {
   if (shader.includes('vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));')) {
     shader = shader.replace(
       'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));',
-      'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));\n            vRevealWorldY = (modelMatrix * vec4(splatCenter, 1.0)).y;',
+      'vec3 splatCenter = uintBitsToFloat(uvec3(sampledCenterColor.gba));\n            vRevealWorldY = splatCenter.y;',
     );
   }
 
