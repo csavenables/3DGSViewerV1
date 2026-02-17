@@ -1,5 +1,4 @@
 import { createAppShell } from './bootstrap';
-import { loadSceneManifest } from '../config/loadSceneManifest';
 import { Viewer } from '../viewer/Viewer';
 
 function getSceneIdFromQuery(): string {
@@ -26,12 +25,5 @@ export function startApp(): void {
 
   void (async () => {
     await viewer.init(initialSceneId);
-    const scenes = await loadSceneManifest();
-    ui.setSceneOptions(scenes, viewer.getActiveSceneId(), (sceneId) => {
-      if (sceneId === viewer.getActiveSceneId()) {
-        return;
-      }
-      void viewer.loadScene(sceneId);
-    });
   })();
 }

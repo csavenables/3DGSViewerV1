@@ -3,8 +3,7 @@ import { SceneConfig } from '../config/schema';
 import { GaussianSplatRenderer } from '../renderers/GaussianSplatRenderer';
 import { InputBindings } from './InputBindings';
 import { CameraController } from './CameraController';
-import { SceneManager } from './SceneManager';
-import { Transitions } from './Transitions';
+import { SceneManager, SplatToggleItem } from './SceneManager';
 
 export interface ViewerUi {
   setLoading(loading: boolean, message?: string): void;
@@ -12,11 +11,9 @@ export interface ViewerUi {
   clearError(): void;
   configureToolbar(config: SceneConfig): void;
   setSceneTitle(title: string): void;
-  setSceneOptions(
-    scenes: Array<{ id: string; title: string }>,
-    activeSceneId: string,
-    onSceneChange: (sceneId: string) => void,
-  ): void;
+  setSplatOptions(items: SplatToggleItem[], onToggle: (id: string, nextVisible: boolean) => void): void;
+  setSplatBusy(id: string, busy: boolean): void;
+  setSplatVisible(id: string, visible: boolean): void;
   getOverlayElement(): HTMLElement;
   getCanvasHostElement(): HTMLElement;
 }
@@ -27,7 +24,6 @@ export class Viewer {
   private readonly webglRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   private readonly cameraController: CameraController;
   private readonly splatRenderer = new GaussianSplatRenderer();
-  private readonly transitions: Transitions;
   private readonly sceneManager: SceneManager;
   private readonly inputBindings: InputBindings;
   private readonly resizeObserver: ResizeObserver;
@@ -50,8 +46,7 @@ export class Viewer {
     container.appendChild(this.webglRenderer.domElement);
 
     this.cameraController = new CameraController(this.camera, this.webglRenderer.domElement);
-    this.transitions = new Transitions(ui.getOverlayElement());
-    this.sceneManager = new SceneManager(this.splatRenderer, this.transitions, {
+    this.sceneManager = new SceneManager(this.splatRenderer, {
       onLoading: (message) => {
         this.ui.setLoading(true, message);
       },
@@ -100,6 +95,10 @@ export class Viewer {
       this.applySceneConfig(config);
       this.activeSceneId = sceneId;
       this.ui.setLoading(false);
+      this.ui.setSplatOptions(this.sceneManager.getSplatItems(), (id, nextVisible) => {
+        void this.toggleSplatVisibility(id, nextVisible);
+      });
+      await this.sceneManager.revealActiveScene();
     } catch (error) {
       this.ui.setLoading(false);
       const message = error instanceof Error ? error.message : 'Unknown error while loading scene.';
@@ -172,6 +171,21 @@ export class Viewer {
     this.fitCameraToContent(config);
     this.autoRotate = config.ui.autorotateDefaultOn && config.ui.enableAutorotate;
     this.cameraController.setAutoRotate(this.autoRotate);
+  }
+
+  private async toggleSplatVisibility(id: string, nextVisible: boolean): Promise<void> {
+    this.ui.setSplatBusy(id, true);
+    try {
+      const finalVisible = await this.sceneManager.setSplatVisible(id, nextVisible);
+      this.ui.setSplatVisible(id, finalVisible);
+      if (this.activeConfig) {
+        this.fitCameraToContent(this.activeConfig);
+      }
+    } catch {
+      this.ui.setSplatVisible(id, !nextVisible);
+    } finally {
+      this.ui.setSplatBusy(id, false);
+    }
   }
 
   private fitCameraToContent(config: SceneConfig): void {

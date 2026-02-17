@@ -52,7 +52,7 @@ export class SplatRevealController {
     config: RevealConfig,
   ): Promise<void> {
     const start = performance.now();
-    const duration = Math.max(1, config.durationMs);
+    const duration = Math.min(2000, Math.max(1000, config.durationMs));
 
     await new Promise<void>((resolve) => {
       const step = (now: number) => {

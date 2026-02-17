@@ -228,9 +228,9 @@ export function validateSceneConfig(raw: unknown): { ok: true; data: SceneConfig
         typeof transitionsObject.fadeColour === 'string' ? transitionsObject.fadeColour : undefined,
     },
     reveal: {
-      enabled: typeof revealObject.enabled === 'boolean' ? revealObject.enabled : false,
+      enabled: typeof revealObject.enabled === 'boolean' ? revealObject.enabled : true,
       mode: revealObject.mode === 'yRamp' ? 'yRamp' : 'yRamp',
-      durationMs: isNumber(revealObject.durationMs) ? revealObject.durationMs : 450,
+      durationMs: isNumber(revealObject.durationMs) ? revealObject.durationMs : 1400,
       band: isNumber(revealObject.band) ? revealObject.band : 0.12,
       ease:
         revealObject.ease === 'linear' || revealObject.ease === 'easeInOut'

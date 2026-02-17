@@ -1,6 +1,7 @@
 import { SceneConfig } from '../config/schema';
 import { createLoader, LoaderController } from '../ui/components/Loader';
 import { createToolbar, ToolbarController } from '../ui/components/Toolbar';
+import { SplatToggleItem } from '../viewer/SceneManager';
 import { ViewerUi } from '../viewer/Viewer';
 
 export interface AppShell extends ViewerUi {
@@ -12,13 +13,14 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
     <div class="app-shell">
       <header class="app-header">
         <h1 class="app-title">3DGSViewerV1</h1>
-        <div class="header-scene-controls">
-          <p class="scene-title">Scene</p>
-          <select class="scene-select hidden" aria-label="Select scene"></select>
-        </div>
+        <p class="scene-title">Scene</p>
       </header>
       <main class="viewer-root">
         <section class="viewer-host" id="viewer-host"></section>
+        <aside class="splat-panel" aria-label="Splat visibility controls">
+          <h2 class="splat-panel-title">Splats</h2>
+          <div class="splat-controls"></div>
+        </aside>
         <div class="transition-overlay"></div>
       </main>
       <div class="error-panel hidden" role="alert">
@@ -38,7 +40,7 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
   const errorDetails = container.querySelector<HTMLElement>('.error-details');
   const sceneTitle = container.querySelector<HTMLElement>('.scene-title');
   const footer = container.querySelector<HTMLElement>('.app-footer');
-  const sceneSelect = container.querySelector<HTMLSelectElement>('.scene-select');
+  const splatControls = container.querySelector<HTMLElement>('.splat-controls');
 
   if (
     !viewerHost ||
@@ -48,7 +50,7 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
     !errorDetails ||
     !sceneTitle ||
     !footer ||
-    !sceneSelect
+    !splatControls
   ) {
     throw new Error('App shell failed to initialize.');
   }
@@ -86,32 +88,41 @@ export function createAppShell(container: HTMLElement, actions: Parameters<typeo
     setSceneTitle(title: string): void {
       sceneTitle.textContent = title;
     },
-    setSceneOptions(
-      scenes: Array<{ id: string; title: string }>,
-      activeSceneId: string,
-      onSceneChange: (sceneId: string) => void,
+    setSplatOptions(
+      items: SplatToggleItem[],
+      onToggle: (id: string, nextVisible: boolean) => void,
     ): void {
-      sceneSelect.innerHTML = '';
-      if (scenes.length <= 1) {
-        sceneSelect.classList.add('hidden');
+      splatControls.innerHTML = '';
+      for (const item of items) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'splat-toggle';
+        button.dataset.splatId = item.id;
+        button.dataset.visible = item.visible ? 'true' : 'false';
+        button.textContent = item.label;
+        button.classList.toggle('active', item.visible);
+        button.onclick = () => {
+          const currentVisible = button.dataset.visible === 'true';
+          onToggle(item.id, !currentVisible);
+        };
+        splatControls.appendChild(button);
+      }
+    },
+    setSplatBusy(id: string, busy: boolean): void {
+      const button = splatControls.querySelector<HTMLButtonElement>(`button[data-splat-id="${id}"]`);
+      if (!button) {
         return;
       }
-
-      for (const scene of scenes) {
-        const option = document.createElement('option');
-        option.value = scene.id;
-        option.textContent = scene.title;
-        option.selected = scene.id === activeSceneId;
-        sceneSelect.appendChild(option);
+      button.disabled = busy;
+      button.classList.toggle('busy', busy);
+    },
+    setSplatVisible(id: string, visible: boolean): void {
+      const button = splatControls.querySelector<HTMLButtonElement>(`button[data-splat-id="${id}"]`);
+      if (!button) {
+        return;
       }
-
-      sceneSelect.onchange = () => {
-        const sceneId = sceneSelect.value;
-        if (sceneId) {
-          onSceneChange(sceneId);
-        }
-      };
-      sceneSelect.classList.remove('hidden');
+      button.dataset.visible = visible ? 'true' : 'false';
+      button.classList.toggle('active', visible);
     },
     getOverlayElement(): HTMLElement {
       return overlay;

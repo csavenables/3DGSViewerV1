@@ -34,8 +34,9 @@ describe('validateSceneConfig', () => {
     const result = validateSceneConfig(valid);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.reveal.enabled).toBe(false);
+      expect(result.data.reveal.enabled).toBe(true);
       expect(result.data.reveal.mode).toBe('yRamp');
+      expect(result.data.reveal.durationMs).toBe(1400);
     }
   });
 

@@ -2,7 +2,12 @@ import { loadSceneConfig } from '../config/loadSceneConfig';
 import { RevealConfig, SceneConfig } from '../config/schema';
 import { REVEAL_CONFIG_DEFAULTS, SplatHandle, SplatRenderer } from '../renderers/types';
 import { SplatRevealController } from './SplatRevealController';
-import { Transitions } from './Transitions';
+
+export interface SplatToggleItem {
+  id: string;
+  label: string;
+  visible: boolean;
+}
 
 export interface SceneManagerEvents {
   onLoading(message: string): void;
@@ -19,11 +24,12 @@ export class SceneLoadError extends Error {
 export class SceneManager {
   private activeConfig: SceneConfig | null = null;
   private activeHandles: SplatHandle[] = [];
+  private activeItems: SplatToggleItem[] = [];
   private readonly revealController = new SplatRevealController();
+  private opVersion = 0;
 
   constructor(
     private readonly renderer: SplatRenderer,
-    private readonly transitions: Transitions,
     private readonly events: SceneManagerEvents,
   ) {}
 
@@ -32,6 +38,8 @@ export class SceneManager {
   }
 
   async loadScene(sceneId: string): Promise<SceneConfig> {
+    this.opVersion += 1;
+    const loadVersion = this.opVersion;
     this.events.onLoading('Loading scene configuration...');
     let config: SceneConfig;
     try {
@@ -42,9 +50,6 @@ export class SceneManager {
       }
       throw new SceneLoadError('Unknown error while loading scene configuration.');
     }
-
-    this.transitions.setColor(config.transitions.fadeColour ?? '#000000');
-    await this.transitions.fadeOut(config.transitions.sceneFadeMs);
 
     if (this.activeHandles.length > 0) {
       this.events.onLoading('Dissolving current scene...');
@@ -59,13 +64,21 @@ export class SceneManager {
     this.events.onLoading('Loading splat assets...');
     try {
       await this.renderer.clear();
+      if (loadVersion !== this.opVersion) {
+        return this.activeConfig ?? config;
+      }
       const handles = await this.renderer.loadSplats(config.assets);
+      if (loadVersion !== this.opVersion) {
+        return this.activeConfig ?? config;
+      }
       this.activeHandles = handles;
+      this.activeItems = config.assets.map((asset) => ({
+        id: asset.id,
+        label: asset.id.replaceAll('_', ' '),
+        visible: asset.visibleDefault,
+      }));
 
       await this.prepareRevealStart(handles, config.reveal);
-      await Promise.all(
-        handles.map((handle) => this.revealController.revealIn(handle, handle.boundsY, config.reveal)),
-      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error while loading splat assets.';
       throw new SceneLoadError('Unable to load scene assets.', [message]);
@@ -73,12 +86,66 @@ export class SceneManager {
 
     this.activeConfig = config;
     this.events.onReady(config);
-    await this.transitions.fadeIn(config.transitions.sceneFadeMs);
     return config;
+  }
+
+  async revealActiveScene(): Promise<void> {
+    if (!this.activeConfig) {
+      return;
+    }
+    await Promise.all(
+      this.activeHandles.map(async (handle) => {
+        const item = this.activeItems.find((entry) => entry.id === handle.id);
+        if (!item?.visible) {
+          this.renderer.setVisible(handle.id, false);
+          return;
+        }
+        this.renderer.setVisible(handle.id, true);
+        await this.revealController.revealIn(handle, handle.boundsY, this.activeConfig!.reveal);
+      }),
+    );
+  }
+
+  getSplatItems(): SplatToggleItem[] {
+    return this.activeItems.map((item) => ({ ...item }));
+  }
+
+  async setSplatVisible(id: string, visible: boolean): Promise<boolean> {
+    if (!this.activeConfig) {
+      return false;
+    }
+    const handle = this.activeHandles.find((entry) => entry.id === id);
+    const item = this.activeItems.find((entry) => entry.id === id);
+    if (!handle || !item) {
+      return false;
+    }
+    if (item.visible === visible) {
+      return visible;
+    }
+
+    this.opVersion += 1;
+    const localVersion = this.opVersion;
+
+    if (visible) {
+      item.visible = true;
+      this.renderer.setVisible(id, true);
+      await this.prepareRevealStart([handle], this.activeConfig.reveal);
+      await this.revealController.revealIn(handle, handle.boundsY, this.activeConfig.reveal);
+      return true;
+    }
+
+    await this.revealController.revealOut(handle, handle.boundsY, this.activeConfig.reveal);
+    if (localVersion !== this.opVersion) {
+      return item.visible;
+    }
+    this.renderer.setVisible(id, false);
+    item.visible = false;
+    return false;
   }
 
   async dispose(): Promise<void> {
     this.activeHandles = [];
+    this.activeItems = [];
     await this.renderer.dispose();
   }
 

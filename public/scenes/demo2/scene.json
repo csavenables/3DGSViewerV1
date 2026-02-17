@@ -61,7 +61,7 @@
   "reveal": {
     "enabled": true,
     "mode": "yRamp",
-    "durationMs": 450,
+    "durationMs": 1400,
     "band": 0.12,
     "ease": "easeInOut",
     "affectAlpha": true,
