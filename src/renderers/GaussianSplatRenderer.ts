@@ -58,6 +58,8 @@ export class GaussianSplatRenderer implements SplatRenderer {
   private fitData: SplatFitData | null = null;
   private warnedRevealFallback = false;
   private revealBinding: RevealMaterialBinding | null = null;
+  private sceneGraphMutating = false;
+  private sceneMutationQueue: Promise<void> = Promise.resolve();
 
   async initialize(context: RendererContext): Promise<void> {
     this.viewer = this.createViewer(context);
@@ -80,22 +82,24 @@ export class GaussianSplatRenderer implements SplatRenderer {
     }
     this.ensureSupportedAssetFormats(assets);
 
-    const sceneIndexStart = this.sceneIdOrder.length;
-    await this.loadAssetsWithViewer(assets);
+    return this.withSceneMutation(async () => {
+      const sceneIndexStart = this.sceneIdOrder.length;
+      await this.loadAssetsWithViewer(assets);
 
-    const newHandles: SplatHandle[] = [];
-    for (let i = 0; i < assets.length; i += 1) {
-      const sceneIndex = sceneIndexStart + i;
-      const scene = this.viewer.getSplatScene(sceneIndex);
-      const handle = this.createSplatHandle(assets[i], scene, sceneIndex);
-      newHandles.push(handle);
-    }
+      const newHandles: SplatHandle[] = [];
+      for (let i = 0; i < assets.length; i += 1) {
+        const sceneIndex = sceneIndexStart + i;
+        const scene = this.viewer!.getSplatScene(sceneIndex);
+        const handle = this.createSplatHandle(assets[i], scene, sceneIndex);
+        newHandles.push(handle);
+      }
 
-    this.sceneIdOrder.push(...assets.map((asset) => asset.id));
-    this.handles.push(...newHandles);
-    this.fitData = null;
-    this.viewer.forceRenderNextFrame();
-    return newHandles;
+      this.sceneIdOrder.push(...assets.map((asset) => asset.id));
+      this.handles.push(...newHandles);
+      this.fitData = null;
+      this.viewer!.forceRenderNextFrame();
+      return newHandles;
+    });
   }
 
   setVisible(id: string, visible: boolean): void {
@@ -111,17 +115,19 @@ export class GaussianSplatRenderer implements SplatRenderer {
     if (!this.viewer) {
       return;
     }
-    for (let sceneIndex = this.sceneIdOrder.length - 1; sceneIndex >= 0; sceneIndex -= 1) {
-      await this.viewer.removeSplatScene(sceneIndex, false);
-    }
-    for (const handle of this.handles) {
-      handle.dispose();
-    }
-    this.sceneIdOrder.length = 0;
-    this.handles.length = 0;
-    this.fitData = null;
-    this.revealBinding = null;
-    this.viewer.forceRenderNextFrame();
+    await this.withSceneMutation(async () => {
+      for (let sceneIndex = this.sceneIdOrder.length - 1; sceneIndex >= 0; sceneIndex -= 1) {
+        await this.viewer!.removeSplatScene(sceneIndex, false);
+      }
+      for (const handle of this.handles) {
+        handle.dispose();
+      }
+      this.sceneIdOrder.length = 0;
+      this.handles.length = 0;
+      this.fitData = null;
+      this.revealBinding = null;
+      this.viewer!.forceRenderNextFrame();
+    });
   }
 
   getFitData(): SplatFitData | null {
@@ -132,7 +138,7 @@ export class GaussianSplatRenderer implements SplatRenderer {
         radius: this.fitData.radius,
       };
     }
-    if (!this.viewer || this.handles.length === 0) {
+    if (!this.viewer || this.handles.length === 0 || this.sceneGraphMutating) {
       return null;
     }
 
@@ -169,10 +175,16 @@ export class GaussianSplatRenderer implements SplatRenderer {
   }
 
   update(): void {
+    if (this.sceneGraphMutating) {
+      return;
+    }
     this.viewer?.update();
   }
 
   render(): void {
+    if (this.sceneGraphMutating) {
+      return;
+    }
     this.viewer?.render();
   }
 
@@ -184,11 +196,29 @@ export class GaussianSplatRenderer implements SplatRenderer {
     if (!this.viewer) {
       return;
     }
-    await this.viewer.dispose();
+    await this.withSceneMutation(async () => {
+      await this.viewer!.dispose();
+    });
     this.viewer = null;
     this.sceneIdOrder = [];
     this.fitData = null;
     this.revealBinding = null;
+  }
+
+  private async withSceneMutation<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.sceneMutationQueue.then(async () => {
+      this.sceneGraphMutating = true;
+      try {
+        return await work();
+      } finally {
+        this.sceneGraphMutating = false;
+      }
+    });
+    this.sceneMutationQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   private async loadAssetsWithViewer(assets: SplatAssetConfig[]): Promise<void> {
